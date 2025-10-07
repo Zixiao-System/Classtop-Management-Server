@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no"/>
+    <meta name="renderer" content="webkit"/>
+    <title>ClassTop Management Server</title>
+    <link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css">
+    <script src="https://unpkg.com/mdui@2/mdui.global.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 24px;
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 8px 0;
+        }
+        .client-card {
+            margin-bottom: 16px;
+            padding: 16px;
+        }
+        .client-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.875rem;
+        }
+        .status-online {
+            background: #4caf50;
+            color: white;
+        }
+        .status-offline {
+            background: #9e9e9e;
+            color: white;
+        }
+        .client-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 8px;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top App Bar -->
+    <mdui-top-app-bar>
+        <mdui-top-app-bar-title>ClassTop 集中管理服务器</mdui-top-app-bar-title>
+        <div style="flex-grow: 1"></div>
+        <mdui-button-icon icon="refresh--outlined" onclick="refreshData()"></mdui-button-icon>
+        <mdui-button-icon icon="settings--outlined" onclick="showSettings()"></mdui-button-icon>
+    </mdui-top-app-bar>
+
+    <!-- Navigation Tabs -->
+    <mdui-tabs value="dashboard" style="position: sticky; top: 64px; background: var(--mdui-color-surface); z-index: 100;">
+        <mdui-tab value="dashboard" onclick="showTab('dashboard')">仪表板</mdui-tab>
+        <mdui-tab value="clients" onclick="showTab('clients')">客户端管理</mdui-tab>
+        <mdui-tab value="data" onclick="showTab('data')">数据查看</mdui-tab>
+    </mdui-tabs>
+
+    <div class="container">
+        <!-- Dashboard Tab -->
+        <div id="dashboard-tab" style="margin-top: 24px;">
+            <h2>服务器概览</h2>
+            <div class="stats-grid">
+                <mdui-card class="stat-card">
+                    <div>客户端总数</div>
+                    <div class="stat-value" id="stat-total-clients">0</div>
+                </mdui-card>
+                <mdui-card class="stat-card">
+                    <div>在线客户端</div>
+                    <div class="stat-value" style="color: #4caf50;" id="stat-online-clients">0</div>
+                </mdui-card>
+                <mdui-card class="stat-card">
+                    <div>课程总数</div>
+                    <div class="stat-value" id="stat-courses">0</div>
+                </mdui-card>
+                <mdui-card class="stat-card">
+                    <div>课程表条目</div>
+                    <div class="stat-value" id="stat-entries">0</div>
+                </mdui-card>
+            </div>
+
+            <h3>客户端统计</h3>
+            <div id="client-stats-list"></div>
+        </div>
+
+        <!-- Clients Tab -->
+        <div id="clients-tab" style="display: none; margin-top: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2>客户端列表</h2>
+                <mdui-button icon="add" onclick="showRegisterDialog()">注册新客户端</mdui-button>
+            </div>
+            <div id="clients-list"></div>
+        </div>
+
+        <!-- Data Tab -->
+        <div id="data-tab" style="display: none; margin-top: 24px;">
+            <h2>数据查看</h2>
+            <mdui-select label="选择客户端" id="data-client-select" onchange="loadClientData()"></mdui-select>
+
+            <div style="margin-top: 24px;">
+                <h3>课程列表</h3>
+                <div id="client-courses-list"></div>
+            </div>
+
+            <div style="margin-top: 24px;">
+                <h3>课程表</h3>
+                <div id="client-schedule-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Client Dialog -->
+    <mdui-dialog id="register-dialog" headline="注册新客户端">
+        <mdui-text-field label="UUID*" id="reg-uuid" required helper="客户端唯一标识符"></mdui-text-field>
+        <mdui-text-field label="名称*" id="reg-name" required></mdui-text-field>
+        <mdui-text-field label="描述" id="reg-description"></mdui-text-field>
+        <mdui-text-field label="API URL*" id="reg-api-url" required value="http://localhost:8765"></mdui-text-field>
+        <mdui-text-field label="API Key" id="reg-api-key" helper="可选"></mdui-text-field>
+        <mdui-button slot="action" variant="text" onclick="closeDialog('register-dialog')">取消</mdui-button>
+        <mdui-button slot="action" variant="text" onclick="registerClient()">注册</mdui-button>
+    </mdui-dialog>
+
+    <!-- Client Detail Dialog -->
+    <mdui-dialog id="detail-dialog" headline="客户端详情" style="--mdui-dialog-max-width: 600px;">
+        <div id="client-detail-content"></div>
+        <mdui-button slot="action" variant="text" onclick="closeDialog('detail-dialog')">关闭</mdui-button>
+    </mdui-dialog>
+
+    <script>
+        const API_BASE = '/api';
+        let currentTab = 'dashboard';
+        let clients = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDashboard();
+        });
+
+        function showTab(tab) {
+            currentTab = tab;
+            document.getElementById('dashboard-tab').style.display = tab === 'dashboard' ? 'block' : 'none';
+            document.getElementById('clients-tab').style.display = tab === 'clients' ? 'block' : 'none';
+            document.getElementById('data-tab').style.display = tab === 'data' ? 'block' : 'none';
+
+            if (tab === 'dashboard') {
+                loadDashboard();
+            } else if (tab === 'clients') {
+                loadClients();
+            } else if (tab === 'data') {
+                loadClientSelect();
+            }
+        }
+
+        function refreshData() {
+            if (currentTab === 'dashboard') {
+                loadDashboard();
+            } else if (currentTab === 'clients') {
+                loadClients();
+            } else if (currentTab === 'data') {
+                loadClientData();
+            }
+        }
+
+        // Dashboard
+        async function loadDashboard() {
+            try {
+                const [statsRes, clientStatsRes] = await Promise.all([
+                    fetch(`${API_BASE}/statistics`),
+                    fetch(`${API_BASE}/statistics/clients`)
+                ]);
+
+                const stats = (await statsRes.json()).data;
+                const clientStats = (await clientStatsRes.json()).data;
+
+                document.getElementById('stat-total-clients').textContent = stats.total_clients;
+                document.getElementById('stat-online-clients').textContent = stats.online_clients;
+                document.getElementById('stat-courses').textContent = stats.total_courses;
+                document.getElementById('stat-entries').textContent = stats.total_schedule_entries;
+
+                renderClientStats(clientStats);
+            } catch (error) {
+                mdui.snackbar({ message: '加载数据失败: ' + error.message });
+            }
+        }
+
+        function renderClientStats(stats) {
+            const list = document.getElementById('client-stats-list');
+            list.innerHTML = '';
+
+            if (stats.length === 0) {
+                list.innerHTML = '<mdui-card style="padding: 24px; text-align: center;">暂无客户端数据</mdui-card>';
+                return;
+            }
+
+            stats.forEach(stat => {
+                const card = document.createElement('mdui-card');
+                card.className = 'client-card';
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: bold; font-size: 1.1rem;">${stat.client_name}</div>
+                            <div style="margin-top: 8px; display: flex; gap: 16px; font-size: 0.875rem; color: var(--mdui-color-on-surface-variant);">
+                                <span>📚 ${stat.total_courses} 门课程</span>
+                                <span>📅 ${stat.total_schedule_entries} 个课表</span>
+                                <span>🕐 ${stat.last_sync ? new Date(stat.last_sync).toLocaleString() : '未同步'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        // Clients
+        async function loadClients() {
+            try {
+                const response = await fetch(`${API_BASE}/clients`);
+                const data = await response.json();
+                clients = data.data;
+                renderClients();
+            } catch (error) {
+                mdui.snackbar({ message: '加载客户端失败: ' + error.message });
+            }
+        }
+
+        function renderClients() {
+            const list = document.getElementById('clients-list');
+            list.innerHTML = '';
+
+            if (clients.length === 0) {
+                list.innerHTML = '<mdui-card style="padding: 24px; text-align: center;">暂无客户端，点击右上角"注册新客户端"添加</mdui-card>';
+                return;
+            }
+
+            clients.forEach(client => {
+                const card = document.createElement('mdui-card');
+                card.className = 'client-card';
+                card.innerHTML = `
+                    <div class="client-header">
+                        <div>
+                            <h3 style="margin: 0;">${client.name}</h3>
+                            <div style="color: var(--mdui-color-on-surface-variant); font-size: 0.875rem; margin-top: 4px;">
+                                UUID: ${client.uuid}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span class="status-badge ${client.status === 'online' ? 'status-online' : 'status-offline'}">
+                                ${client.status === 'online' ? '在线' : '离线'}
+                            </span>
+                            <mdui-button-icon icon="visibility--outlined" onclick="showClientDetail(${client.id})"></mdui-button-icon>
+                            <mdui-button-icon icon="delete--outlined" onclick="deleteClient(${client.id})"></mdui-button-icon>
+                        </div>
+                    </div>
+                    <div class="client-info">
+                        <div><strong>API:</strong> ${client.api_url}</div>
+                        <div><strong>最后同步:</strong> ${client.last_sync ? new Date(client.last_sync).toLocaleString() : '未同步'}</div>
+                        <div><strong>创建时间:</strong> ${new Date(client.created_at).toLocaleString()}</div>
+                    </div>
+                    ${client.description ? `<div style="margin-top: 8px; color: var(--mdui-color-on-surface-variant);">${client.description}</div>` : ''}
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function showRegisterDialog() {
+            document.getElementById('reg-uuid').value = crypto.randomUUID();
+            document.getElementById('register-dialog').open = true;
+        }
+
+        async function registerClient() {
+            const data = {
+                uuid: document.getElementById('reg-uuid').value,
+                name: document.getElementById('reg-name').value,
+                description: document.getElementById('reg-description').value || null,
+                api_url: document.getElementById('reg-api-url').value,
+                api_key: document.getElementById('reg-api-key').value || null
+            };
+
+            if (!data.uuid || !data.name || !data.api_url) {
+                mdui.snackbar({ message: '请填写必填项' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/clients/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    mdui.snackbar({ message: '客户端注册成功' });
+                    closeDialog('register-dialog');
+                    loadClients();
+                } else {
+                    throw new Error('注册失败');
+                }
+            } catch (error) {
+                mdui.snackbar({ message: '注册失败: ' + error.message });
+            }
+        }
+
+        async function deleteClient(id) {
+            if (!confirm('确定要删除此客户端吗？所有相关数据也将被删除！')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/clients/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    mdui.snackbar({ message: '客户端删除成功' });
+                    loadClients();
+                } else {
+                    throw new Error('删除失败');
+                }
+            } catch (error) {
+                mdui.snackbar({ message: '删除失败: ' + error.message });
+            }
+        }
+
+        async function showClientDetail(id) {
+            try {
+                const response = await fetch(`${API_BASE}/clients/${id}`);
+                const data = await response.json();
+                const client = data.data;
+
+                const content = document.getElementById('client-detail-content');
+                content.innerHTML = `
+                    <div style="display: grid; gap: 12px;">
+                        <div><strong>名称:</strong> ${client.name}</div>
+                        <div><strong>UUID:</strong> ${client.uuid}</div>
+                        <div><strong>状态:</strong> <span class="status-badge ${client.status === 'online' ? 'status-online' : 'status-offline'}">${client.status}</span></div>
+                        <div><strong>API URL:</strong> ${client.api_url}</div>
+                        ${client.description ? `<div><strong>描述:</strong> ${client.description}</div>` : ''}
+                        <div><strong>最后同步:</strong> ${client.last_sync ? new Date(client.last_sync).toLocaleString() : '未同步'}</div>
+                        <div><strong>创建时间:</strong> ${new Date(client.created_at).toLocaleString()}</div>
+                    </div>
+                `;
+
+                document.getElementById('detail-dialog').open = true;
+            } catch (error) {
+                mdui.snackbar({ message: '加载详情失败: ' + error.message });
+            }
+        }
+
+        // Data viewing
+        async function loadClientSelect() {
+            try {
+                const response = await fetch(`${API_BASE}/clients`);
+                const data = await response.json();
+                const select = document.getElementById('data-client-select');
+
+                select.innerHTML = '<mdui-menu-item value="">-- 选择客户端 --</mdui-menu-item>' +
+                    data.data.map(c => `<mdui-menu-item value="${c.id}">${c.name}</mdui-menu-item>`).join('');
+            } catch (error) {
+                mdui.snackbar({ message: '加载客户端列表失败: ' + error.message });
+            }
+        }
+
+        async function loadClientData() {
+            const clientId = document.getElementById('data-client-select').value;
+            if (!clientId) return;
+
+            try {
+                const [coursesRes, scheduleRes] = await Promise.all([
+                    fetch(`${API_BASE}/clients/${clientId}/courses`),
+                    fetch(`${API_BASE}/clients/${clientId}/schedule`)
+                ]);
+
+                const courses = (await coursesRes.json()).data;
+                const schedule = (await scheduleRes.json()).data;
+
+                renderClientCourses(courses);
+                renderClientSchedule(schedule);
+            } catch (error) {
+                mdui.snackbar({ message: '加载数据失败: ' + error.message });
+            }
+        }
+
+        function renderClientCourses(courses) {
+            const list = document.getElementById('client-courses-list');
+            list.innerHTML = '';
+
+            if (courses.length === 0) {
+                list.innerHTML = '<mdui-card style="padding: 16px;">暂无课程数据</mdui-card>';
+                return;
+            }
+
+            courses.forEach(course => {
+                const card = document.createElement('mdui-card');
+                card.style.padding = '12px';
+                card.style.marginBottom = '8px';
+                card.style.borderLeft = `4px solid ${course.color || '#6750A4'}`;
+                card.innerHTML = `
+                    <div style="font-weight: bold;">${course.name}</div>
+                    ${course.teacher ? `<div style="font-size: 0.875rem; margin-top: 4px;">教师: ${course.teacher}</div>` : ''}
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function renderClientSchedule(schedule) {
+            const list = document.getElementById('client-schedule-list');
+            list.innerHTML = '';
+
+            if (schedule.length === 0) {
+                list.innerHTML = '<mdui-card style="padding: 16px;">暂无课程表数据</mdui-card>';
+                return;
+            }
+
+            const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+            const grouped = {};
+
+            days.forEach((_, i) => grouped[i + 1] = []);
+            schedule.forEach(entry => {
+                if (grouped[entry.day_of_week]) {
+                    grouped[entry.day_of_week].push(entry);
+                }
+            });
+
+            Object.keys(grouped).forEach(day => {
+                const card = document.createElement('mdui-card');
+                card.innerHTML = `
+                    <div style="padding: 16px;">
+                        <h4 style="margin: 0 0 12px 0;">${days[day - 1]}</h4>
+                        ${grouped[day].length === 0 ? '<div style="color: var(--mdui-color-on-surface-variant);">无课程</div>' : ''}
+                        ${grouped[day].map(entry => `
+                            <div style="padding: 8px; margin-bottom: 8px; background: var(--mdui-color-surface-variant); border-radius: 4px; border-left: 3px solid ${entry.color || '#6750A4'};">
+                                <div style="font-weight: bold;">${entry.course_name}</div>
+                                <div style="font-size: 0.875rem;">${entry.start_time} - ${entry.end_time}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function closeDialog(id) {
+            document.getElementById(id).open = false;
+        }
+
+        function showSettings() {
+            window.open('/api/docs', '_blank');
+        }
+    </script>
+</body>
+</html>
