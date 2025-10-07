@@ -43,16 +43,26 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 - **后端框架**: Actix-Web 4.9
 - **数据库**: SQLx (PostgreSQL / SQL Server)
 - **API 文档**: utoipa + Swagger UI + ReDoc
+- **前端框架**: Vue 3 + Vite
 - **前端 UI**: MDUI 2 (Material Design)
 - **语言**: Rust 2021 Edition
+
+## 💻 平台支持
+
+| 平台 | 支持状态 | 说明                                  |
+|------|---------|-------------------------------------|
+| ✅ **Windows Server** | 完全支持 | 推荐用于生产环境                            |
+| ✅ **Linux** | 完全支持 | 推荐用于生产环境 (Ubuntu, CentOS, Debian 等) |
+| ⚠️ **macOS** | 实验性支持 | 由于macOS Server已被苹果官方放弃,不推荐用于生产环境    |
 
 ## 📦 快速开始
 
 ### 环境要求
 
 - Rust 1.70+
+- Node.js 18+ (用于前端开发)
 - PostgreSQL 14+
-- 操作系统: Windows / Linux / macOS
+- 操作系统: Windows Server / Linux / macOS (实验性)
 
 ### 安装步骤
 
@@ -79,7 +89,18 @@ PORT=8765
 
 > 注意：目前仅支持 PostgreSQL，SQL Server 支持正在开发中
 
-3. **运行项目**
+3. **构建前端**
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+构建完成后，前端文件会输出到 `static/` 目录，后端会自动提供这些文件。
+
+4. **运行项目**
 
 开发模式：
 ```bash
@@ -91,12 +112,23 @@ cargo run
 cargo run --release
 ```
 
-4. **访问服务**
+5. **访问服务**
 
 - **Web 管理界面**: http://localhost:8765
 - **Swagger UI**: http://localhost:8765/api/docs
 - **ReDoc**: http://localhost:8765/api/redoc
 - **健康检查**: http://localhost:8765/api/health
+
+### 前端开发
+
+如果需要修改前端代码，可以使用开发模式：
+
+```bash
+cd frontend
+npm run dev
+```
+
+前端开发服务器会在 http://localhost:5173 启动，并自动代理 API 请求到后端服务器。
 
 ## 📖 API 文档
 
@@ -229,49 +261,94 @@ POST /api/sync
 
 ```
 Classtop-Management-Server/
-├── src/
-│   ├── main.rs          # 应用入口
-│   ├── config.rs        # 配置管理
-│   ├── db.rs           # 数据库连接和仓储
-│   ├── models.rs       # 数据模型
-│   ├── handlers.rs     # API 处理器
-│   ├── routes.rs       # 路由配置
-│   └── error.rs        # 错误处理
-├── migrations/         # 数据库迁移文件
+├── src/                      # 后端源代码
+│   ├── main.rs              # 应用入口
+│   ├── config.rs            # 配置管理
+│   ├── db.rs                # 数据库连接和仓储
+│   ├── models.rs            # 数据模型
+│   ├── handlers.rs          # API 处理器
+│   ├── routes.rs            # 路由配置
+│   └── error.rs             # 错误处理
+├── frontend/                # 前端源代码 (Vue 3)
+│   ├── src/
+│   │   ├── App.vue          # 主应用组件
+│   │   ├── main.js          # 前端入口
+│   │   ├── api.js           # API 请求封装
+│   │   └── components/      # Vue 组件
+│   │       ├── DashboardView.vue
+│   │       ├── ClientsView.vue
+│   │       └── DataView.vue
+│   ├── index.html           # HTML 模板
+│   ├── vite.config.js       # Vite 配置
+│   └── package.json         # 前端依赖
+├── migrations/              # 数据库迁移文件
 │   ├── 001_initial_postgresql.sql
 │   └── 001_initial_mssql.sql
-├── static/            # 前端静态文件
-│   └── index.html     # 管理后台界面
-├── docs/              # 文档
-│   └── API.md        # ClassTop 客户端 API 文档
-├── Cargo.toml         # 项目依赖
-├── .env.example       # 环境变量示例
-└── README.md          # 项目说明
+├── static/                  # 前端构建输出 (由 frontend/npm run build 生成)
+├── docs/                    # 文档
+│   └── API.md              # ClassTop 客户端 API 文档
+├── Cargo.toml               # Rust 项目依赖
+├── .env.example             # 环境变量示例
+└── README.md                # 项目说明
 ```
 
 ## 🚀 部署
 
+### 生产部署步骤
+
+1. **构建前端**
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+2. **构建后端**
+```bash
+cargo build --release
+```
+
+3. **运行服务**
+```bash
+# 确保 .env 文件配置正确
+./target/release/classtop-management-server
+```
+
 ### Docker 部署 (推荐)
 
-```bash
-# 构建镜像
-docker build -t classtop-server .
+Dockerfile 示例：
+```dockerfile
+FROM rust:1.70 AS backend-builder
+WORKDIR /app
+COPY . .
+RUN cargo build --release
 
-# 运行容器
+FROM node:18 AS frontend-builder
+WORKDIR /app
+COPY frontend ./
+RUN npm install && npm run build
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=backend-builder /app/target/release/classtop-management-server .
+COPY --from=frontend-builder /app/dist ./static
+COPY migrations ./migrations
+ENV DATABASE_URL=postgresql://user:pass@host:5432/db
+ENV HOST=0.0.0.0
+ENV PORT=8765
+EXPOSE 8765
+CMD ["./classtop-management-server"]
+```
+
+构建和运行：
+```bash
+docker build -t classtop-server .
 docker run -d \
   -p 8765:8765 \
   -e DATABASE_URL=postgresql://user:pass@host:5432/db \
   classtop-server
-```
-
-### 直接部署
-
-```bash
-# 编译发布版本
-cargo build --release
-
-# 运行
-./target/release/classtop-management-server
 ```
 
 ## 🔒 安全建议
@@ -310,4 +387,4 @@ cargo build --release
 
 ---
 
-**Made with ❤️ and Rust**
+**Made with ZiXiao System ❤️ and Rust**

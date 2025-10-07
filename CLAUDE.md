@@ -10,7 +10,7 @@ ClassTop Management Server is a centralized management server for [ClassTop](htt
 - Backend: Rust (Actix-Web 4.9, SQLx)
 - Database: PostgreSQL
 - API Documentation: utoipa (OpenAPI/Swagger)
-- Frontend: Static HTML with MDUI 2 (Material Design)
+- Frontend: Vue 3 + Vite + MDUI 2 (Material Design)
 
 **Platform Support:**
 - ✅ Windows Server (fully supported)
@@ -36,6 +36,23 @@ cargo check
 
 # Run tests (when added)
 cargo test
+```
+
+### Frontend (Vue 3)
+
+```bash
+# Install dependencies
+cd frontend
+npm install
+
+# Run development server (with API proxy)
+npm run dev
+
+# Build for production (outputs to ../static/)
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
 ### Environment Setup
@@ -166,7 +183,36 @@ Return `AppResult<T>` from functions. Use `?` operator to propagate errors. AppE
 
 ### Frontend
 
-Currently using static HTML (`static/index.html`) with MDUI 2 components. Direct API calls via JavaScript fetch(). No build step required.
+**Structure (`frontend/`):**
+- Built with Vue 3 (Composition API) + Vite + MDUI 2
+- Build output goes to `../static/` directory (served by backend)
+- Development server runs on port 5173 with API proxy to backend
+
+**Component Architecture:**
+- `App.vue` - Main application shell with top bar, tabs, theme toggle
+- `DashboardView.vue` - Server statistics and client overview
+- `ClientsView.vue` - Client management (list, register, view, delete)
+- `DataView.vue` - Data viewing (courses and schedules by client)
+- `api.js` - Centralized API request functions
+
+**Key Features:**
+- Material Design 3 with MDUI 2 Web Components
+- Light/dark/auto theme switching (follows system preference)
+- Responsive layout
+- MDUI components: cards, buttons, dialogs, tabs, text fields, etc.
+- All `mdui-*` tags configured as custom elements in Vite
+
+**Development Workflow:**
+1. Run `npm run dev` in `frontend/` for hot-reload development
+2. Vite dev server proxies `/api/*` to `http://localhost:8765`
+3. Run `npm run build` to generate production build in `../static/`
+4. Backend serves static files from `static/` directory
+
+**API Integration:**
+- All API calls in `src/api.js` with error handling
+- Uses `fetch()` with JSON responses
+- Extracts `data` field from `{success: true, data: {...}}` responses
+- Displays errors via MDUI snackbar
 
 ## Important Notes
 
