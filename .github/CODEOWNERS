@@ -1,0 +1,24 @@
+# CODEOWNERS file
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+* @Amiya167 @HwlloChen
+
+# Backend (Rust)
+/src/ @Amiya167 @HwlloChen
+/migrations/ @Amiya167 @HwlloChen
+Cargo.toml @Amiya167 @HwlloChen
+Cargo.lock @Amiya167 @HwlloChen
+
+# Frontend (Vue 3)
+/frontend/ @Amiya167 @HwlloChen
+
+# CI/CD and workflows
+/.github/ @Amiya167 @HwlloChen
+
+# Documentation
+*.md @Amiya167 @HwlloChen
+
+# Configuration files
+.env.example @Amiya167 @HwlloChen
+.gitignore @Amiya167 @HwlloChen
