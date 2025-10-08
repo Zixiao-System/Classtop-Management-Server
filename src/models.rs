@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
 use chrono::{NaiveDate, NaiveDateTime};
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 // Response wrapper
 #[derive(Debug, Serialize, ToSchema)]
@@ -27,10 +27,10 @@ pub struct Client {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    pub api_url: String,  // 客户端的 API 地址
+    pub api_url: String, // 客户端的 API 地址
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub api_key: Option<String>,  // 如果客户端需要认证
-    pub last_sync: Option<String>,  // 最后同步时间
+    pub api_key: Option<String>, // 如果客户端需要认证
+    pub last_sync: Option<String>, // 最后同步时间
     pub status: String,  // online, offline, error
     pub created_at: String,
 }
@@ -67,8 +67,8 @@ pub struct MessageResponse {
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct Course {
     pub id: i32,
-    pub client_id: i32,  // 所属客户端
-    pub course_id_on_client: i32,  // 客户端上的课程 ID
+    pub client_id: i32,           // 所属客户端
+    pub course_id_on_client: i32, // 客户端上的课程 ID
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub teacher: Option<String>,
@@ -107,9 +107,9 @@ pub struct UpdateCourse {
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct ScheduleEntry {
     pub id: i32,
-    pub client_id: i32,  // 所属客户端
-    pub entry_id_on_client: i32,  // 客户端上的条目 ID
-    pub course_id: i32,  // 管理服务器上的课程 ID
+    pub client_id: i32,          // 所属客户端
+    pub entry_id_on_client: i32, // 客户端上的条目 ID
+    pub course_id: i32,          // 管理服务器上的课程 ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub course_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -207,7 +207,7 @@ pub struct SyncRequest {
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct ClientCourse {
-    pub id: i32,  // 客户端上的 ID
+    pub id: i32, // 客户端上的 ID
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub teacher: Option<String>,
@@ -219,8 +219,8 @@ pub struct ClientCourse {
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct ClientScheduleEntry {
-    pub id: i32,  // 客户端上的 ID
-    pub course_id: i32,  // 客户端上的课程 ID
+    pub id: i32,        // 客户端上的 ID
+    pub course_id: i32, // 客户端上的课程 ID
     pub day_of_week: i32,
     pub start_time: String,
     pub end_time: String,

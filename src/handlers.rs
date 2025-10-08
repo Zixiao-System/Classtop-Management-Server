@@ -1,7 +1,7 @@
-use actix_web::{web, HttpResponse};
-use crate::db::{DbPool, repository::Repository};
-use crate::models::*;
+use crate::db::{repository::Repository, DbPool};
 use crate::error::AppResult;
+use crate::models::*;
+use actix_web::{web, HttpResponse};
 use chrono::Utc;
 
 // Health check handler
@@ -179,11 +179,9 @@ pub async fn sync_data(
     let repo = Repository::new(pool.get_ref().clone());
     let req = request.into_inner();
 
-    let response = repo.sync_client_data(
-        &req.client_uuid,
-        req.courses,
-        req.schedule_entries,
-    ).await?;
+    let response = repo
+        .sync_client_data(&req.client_uuid, req.courses, req.schedule_entries)
+        .await?;
 
     Ok(HttpResponse::Ok().json(response))
 }
@@ -244,7 +242,10 @@ pub async fn get_settings(pool: web::Data<DbPool>) -> AppResult<HttpResponse> {
     ),
     tag = "Settings"
 )]
-pub async fn get_setting(pool: web::Data<DbPool>, key: web::Path<String>) -> AppResult<HttpResponse> {
+pub async fn get_setting(
+    pool: web::Data<DbPool>,
+    key: web::Path<String>,
+) -> AppResult<HttpResponse> {
     let repo = Repository::new(pool.get_ref().clone());
     let setting = repo.get_setting(&key).await?;
     Ok(HttpResponse::Ok().json(ApiResponse::new(setting)))

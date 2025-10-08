@@ -1,17 +1,17 @@
 mod config;
 mod db;
+mod error;
+mod handlers;
 mod models;
 mod routes;
-mod handlers;
-mod error;
 
-use actix_web::{web, App, HttpServer, middleware};
 use actix_cors::Cors;
 use actix_files::Files;
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
-use utoipa_redoc::{Redoc, Servable};
+use actix_web::{middleware, web, App, HttpServer};
 use log::info;
+use utoipa::OpenApi;
+use utoipa_redoc::{Redoc, Servable};
+use utoipa_swagger_ui::SwaggerUi;
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,8 +22,18 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
     let config = config::Config::from_env()?;
 
-    info!("Starting ClassTop Management Server v{}", config.app_version);
-    info!("Database: {}", if config.database_url.contains("postgres") { "PostgreSQL" } else { "SQL Server" });
+    info!(
+        "Starting ClassTop Management Server v{}",
+        config.app_version
+    );
+    info!(
+        "Database: {}",
+        if config.database_url.contains("postgres") {
+            "PostgreSQL"
+        } else {
+            "SQL Server"
+        }
+    );
 
     // Initialize database connection pool
     let db_pool = db::create_pool(&config.database_url).await?;
@@ -48,19 +58,14 @@ async fn main() -> anyhow::Result<()> {
             // Root endpoint
             .route("/", web::get().to(routes::root))
             // API routes
-            .service(
-                web::scope("/api")
-                    .configure(routes::configure_routes)
-            )
+            .service(web::scope("/api").configure(routes::configure_routes))
             // Swagger UI
             .service(
                 SwaggerUi::new("/api/docs/{_:.*}")
-                    .url("/api/openapi.json", routes::ApiDoc::openapi())
+                    .url("/api/openapi.json", routes::ApiDoc::openapi()),
             )
             // ReDoc
-            .service(
-                Redoc::with_url("/api/redoc", routes::ApiDoc::openapi())
-            )
+            .service(Redoc::with_url("/api/redoc", routes::ApiDoc::openapi()))
             // Static files
             .service(Files::new("/", "./static").index_file("index.html"))
     })

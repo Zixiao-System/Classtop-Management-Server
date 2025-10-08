@@ -1,7 +1,7 @@
-use actix_web::{web, HttpResponse};
-use utoipa::OpenApi;
 use crate::handlers;
 use crate::models::*;
+use actix_web::{web, HttpResponse};
+use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -86,7 +86,10 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/{id}", web::put().to(handlers::update_client))
                 .route("/{id}", web::delete().to(handlers::delete_client))
                 .route("/{id}/courses", web::get().to(handlers::get_client_courses))
-                .route("/{id}/schedule", web::get().to(handlers::get_client_schedule))
+                .route(
+                    "/{id}/schedule",
+                    web::get().to(handlers::get_client_schedule),
+                ),
         )
         // Sync
         .route("/sync", web::post().to(handlers::sync_data))
@@ -94,13 +97,13 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
         .service(
             web::scope("/statistics")
                 .route("", web::get().to(handlers::get_statistics))
-                .route("/clients", web::get().to(handlers::get_client_statistics))
+                .route("/clients", web::get().to(handlers::get_client_statistics)),
         )
         // Settings
         .service(
             web::scope("/settings")
                 .route("", web::get().to(handlers::get_settings))
                 .route("/{key}", web::get().to(handlers::get_setting))
-                .route("/{key}", web::put().to(handlers::update_setting))
+                .route("/{key}", web::put().to(handlers::update_setting)),
         );
 }

@@ -1,12 +1,12 @@
-use sqlx::{Pool, Postgres, Any, AnyPool};
-use sqlx::any::AnyPoolOptions;
 use anyhow::Result;
+use sqlx::postgres::PgPoolOptions;
+use sqlx::{Pool, Postgres};
 use std::time::Duration;
 
-pub type DbPool = AnyPool;
+pub type DbPool = Pool<Postgres>;
 
 pub async fn create_pool(database_url: &str) -> Result<DbPool> {
-    let pool = AnyPoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(10)
         .acquire_timeout(Duration::from_secs(30))
         .connect(database_url)
@@ -16,20 +16,10 @@ pub async fn create_pool(database_url: &str) -> Result<DbPool> {
 }
 
 pub async fn run_migrations(pool: &DbPool) -> Result<()> {
-    let database_url = std::env::var("DATABASE_URL")?;
-
-    if database_url.contains("postgres") {
-        let pg_pool: Pool<Postgres> = sqlx::postgres::PgPoolOptions::new()
-            .connect(&database_url)
-            .await?;
-
-        sqlx::query(include_str!("../migrations/001_initial_postgresql.sql"))
-            .execute(&pg_pool)
-            .await
-            .ok();
-    } else {
-        log::warn!("Only PostgreSQL is currently supported");
-    }
+    sqlx::query(include_str!("../migrations/001_initial_postgresql.sql"))
+        .execute(pool)
+        .await
+        .ok();
 
     Ok(())
 }
@@ -37,10 +27,10 @@ pub async fn run_migrations(pool: &DbPool) -> Result<()> {
 // Repository for database operations
 pub mod repository {
     use super::*;
-    use crate::models::*;
     use crate::error::{AppError, AppResult};
-    use sqlx::Row;
+    use crate::models::*;
     use chrono::Utc;
+    use sqlx::Row;
 
     pub struct Repository {
         pool: DbPool,
@@ -56,13 +46,14 @@ pub mod repository {
             let rows = sqlx::query(
                 "SELECT id, uuid, name, description, api_url, api_key,
                         last_sync, status, created_at
-                 FROM clients ORDER BY created_at DESC"
+                 FROM clients ORDER BY created_at DESC",
             )
             .fetch_all(&self.pool)
             .await?;
 
-            let clients = rows.iter().map(|row| {
-                Client {
+            let clients = rows
+                .iter()
+                .map(|row| Client {
                     id: row.get("id"),
                     uuid: row.get("uuid"),
                     name: row.get("name"),
@@ -72,8 +63,8 @@ pub mod repository {
                     last_sync: row.try_get::<String, _>("last_sync").ok(),
                     status: row.get("status"),
                     created_at: row.get("created_at"),
-                }
-            }).collect();
+                })
+                .collect();
 
             Ok(clients)
         }
@@ -82,7 +73,7 @@ pub mod repository {
             let row = sqlx::query(
                 "SELECT id, uuid, name, description, api_url, api_key,
                         last_sync, status, created_at
-                 FROM clients WHERE id = $1"
+                 FROM clients WHERE id = $1",
             )
             .bind(id)
             .fetch_optional(&self.pool)
@@ -108,7 +99,7 @@ pub mod repository {
             let row = sqlx::query(
                 "SELECT id, uuid, name, description, api_url, api_key,
                         last_sync, status, created_at
-                 FROM clients WHERE uuid = $1"
+                 FROM clients WHERE uuid = $1",
             )
             .bind(uuid)
             .fetch_optional(&self.pool)
@@ -250,7 +241,12 @@ pub mod repository {
         }
 
         // Sync operations
-        pub async fn sync_client_data(&self, client_uuid: &str, courses: Vec<ClientCourse>, entries: Vec<ClientScheduleEntry>) -> AppResult<SyncResponse> {
+        pub async fn sync_client_data(
+            &self,
+            client_uuid: &str,
+            courses: Vec<ClientCourse>,
+            entries: Vec<ClientScheduleEntry>,
+        ) -> AppResult<SyncResponse> {
             let client = self.get_client_by_uuid(client_uuid).await?;
             let client_id = client.id;
 
@@ -260,7 +256,7 @@ pub mod repository {
             // Sync courses
             for course in courses {
                 let exists = sqlx::query(
-                    "SELECT id FROM courses WHERE client_id = $1 AND course_id_on_client = $2"
+                    "SELECT id FROM courses WHERE client_id = $1 AND course_id_on_client = $2",
                 )
                 .bind(client_id)
                 .bind(course.id)
@@ -304,7 +300,7 @@ pub mod repository {
             for entry in entries {
                 // Find the course_id in our database
                 let course_row = sqlx::query(
-                    "SELECT id FROM courses WHERE client_id = $1 AND course_id_on_client = $2"
+                    "SELECT id FROM courses WHERE client_id = $1 AND course_id_on_client = $2",
                 )
                 .bind(client_id)
                 .bind(entry.course_id)
@@ -367,7 +363,7 @@ pub mod repository {
             // Log sync
             sqlx::query(
                 "INSERT INTO sync_logs (client_id, sync_type, status, courses_count, entries_count)
-                 VALUES ($1, 'full', 'success', $2, $3)"
+                 VALUES ($1, 'full', 'success', $2, $3)",
             )
             .bind(client_id)
             .bind(synced_courses)
@@ -387,14 +383,15 @@ pub mod repository {
         pub async fn get_client_courses(&self, client_id: i32) -> AppResult<Vec<Course>> {
             let rows = sqlx::query(
                 "SELECT id, client_id, course_id_on_client, name, teacher, color, note
-                 FROM courses WHERE client_id = $1 ORDER BY name"
+                 FROM courses WHERE client_id = $1 ORDER BY name",
             )
             .bind(client_id)
             .fetch_all(&self.pool)
             .await?;
 
-            let courses = rows.iter().map(|row| {
-                Course {
+            let courses = rows
+                .iter()
+                .map(|row| Course {
                     id: row.get("id"),
                     client_id: row.get("client_id"),
                     course_id_on_client: row.get("course_id_on_client"),
@@ -403,8 +400,8 @@ pub mod repository {
                     location: None,
                     color: row.try_get("color").ok(),
                     note: row.try_get("note").ok(),
-                }
-            }).collect();
+                })
+                .collect();
 
             Ok(courses)
         }
@@ -417,34 +414,36 @@ pub mod repository {
                  FROM schedule_entries se
                  JOIN courses c ON se.course_id = c.id
                  WHERE se.client_id = $1
-                 ORDER BY se.day_of_week, se.start_time"
+                 ORDER BY se.day_of_week, se.start_time",
             )
             .bind(client_id)
             .fetch_all(&self.pool)
             .await?;
 
-            let entries = rows.iter().map(|row| {
-                let weeks_str: Option<String> = row.try_get("weeks").ok();
-                let weeks: Option<Vec<i32>> = weeks_str.and_then(|s| {
-                    serde_json::from_str(&s).ok()
-                });
+            let entries = rows
+                .iter()
+                .map(|row| {
+                    let weeks_str: Option<String> = row.try_get("weeks").ok();
+                    let weeks: Option<Vec<i32>> =
+                        weeks_str.and_then(|s| serde_json::from_str(&s).ok());
 
-                ScheduleEntry {
-                    id: row.get("id"),
-                    client_id: row.get("client_id"),
-                    entry_id_on_client: row.get("entry_id_on_client"),
-                    course_id: row.get("course_id"),
-                    course_name: row.try_get("course_name").ok(),
-                    teacher: row.try_get("teacher").ok(),
-                    location: None,
-                    color: row.try_get("color").ok(),
-                    day_of_week: row.get("day_of_week"),
-                    start_time: row.get("start_time"),
-                    end_time: row.get("end_time"),
-                    weeks,
-                    note: None,
-                }
-            }).collect();
+                    ScheduleEntry {
+                        id: row.get("id"),
+                        client_id: row.get("client_id"),
+                        entry_id_on_client: row.get("entry_id_on_client"),
+                        course_id: row.get("course_id"),
+                        course_name: row.try_get("course_name").ok(),
+                        teacher: row.try_get("teacher").ok(),
+                        location: None,
+                        color: row.try_get("color").ok(),
+                        day_of_week: row.get("day_of_week"),
+                        start_time: row.get("start_time"),
+                        end_time: row.get("end_time"),
+                        weeks,
+                        note: None,
+                    }
+                })
+                .collect();
 
             Ok(entries)
         }
@@ -456,10 +455,11 @@ pub mod repository {
                 .await?
                 .get("count");
 
-            let online_clients: i64 = sqlx::query("SELECT COUNT(*) as count FROM clients WHERE status = 'online'")
-                .fetch_one(&self.pool)
-                .await?
-                .get("count");
+            let online_clients: i64 =
+                sqlx::query("SELECT COUNT(*) as count FROM clients WHERE status = 'online'")
+                    .fetch_one(&self.pool)
+                    .await?
+                    .get("count");
 
             let total_courses: i64 = sqlx::query("SELECT COUNT(*) as count FROM courses")
                 .fetch_one(&self.pool)
@@ -490,21 +490,24 @@ pub mod repository {
             .fetch_all(&self.pool)
             .await?;
 
-            let stats = rows.iter().map(|row| {
-                ClientStatistics {
+            let stats = rows
+                .iter()
+                .map(|row| ClientStatistics {
                     client_id: row.get("id"),
                     client_name: row.get("name"),
                     total_courses: row.get("course_count"),
                     total_schedule_entries: row.get("entry_count"),
                     last_sync: row.try_get::<String, _>("last_sync").ok(),
-                }
-            }).collect();
+                })
+                .collect();
 
             Ok(stats)
         }
 
         // Settings operations
-        pub async fn get_all_settings(&self) -> AppResult<std::collections::HashMap<String, String>> {
+        pub async fn get_all_settings(
+            &self,
+        ) -> AppResult<std::collections::HashMap<String, String>> {
             let rows = sqlx::query("SELECT key, value FROM settings")
                 .fetch_all(&self.pool)
                 .await?;
