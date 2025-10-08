@@ -3,6 +3,7 @@ use serde::Serialize;
 use std::fmt;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum AppError {
     Database(sqlx::Error),
     NotFound(String),

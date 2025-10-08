@@ -1,7 +1,5 @@
-use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 // Response wrapper
 #[derive(Debug, Serialize, ToSchema)]
@@ -80,6 +78,7 @@ pub struct Course {
     pub note: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateCourse {
     pub name: String,
@@ -91,6 +90,7 @@ pub struct CreateCourse {
     pub color: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateCourse {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -127,6 +127,7 @@ pub struct ScheduleEntry {
     pub note: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateScheduleEntry {
     pub course_id: i32,
@@ -160,6 +161,7 @@ pub struct HealthResponse {
 }
 
 // Week info
+#[allow(dead_code)]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WeekInfo {
     pub week: i32,
@@ -167,11 +169,13 @@ pub struct WeekInfo {
     pub is_calculated: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SetSemesterStart {
     pub date: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct SemesterStartResponse {
     pub semester_start_date: String,
@@ -238,6 +242,7 @@ pub struct SyncResponse {
 }
 
 // Logs
+#[allow(dead_code)]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LogsResponse {
     pub lines: Vec<String>,
@@ -251,6 +256,7 @@ pub struct RootResponse {
     pub docs: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ResetSettingsRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
