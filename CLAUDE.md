@@ -15,7 +15,7 @@ ClassTop Management Server is a centralized management server for [ClassTop](htt
 **Platform Support:**
 - ✅ Windows Server (fully supported)
 - ✅ Linux (fully supported)
-- ⚠️ macOS (experimental - custom/unofficial macOS Server only)
+- ✅️ macOS (fully supported，Apple silicon & Intel)
 
 ## Development Commands
 

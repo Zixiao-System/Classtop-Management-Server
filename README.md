@@ -49,11 +49,11 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 
 ## 💻 平台支持
 
-| 平台 | 支持状态 | 说明                                  |
-|------|---------|-------------------------------------|
-| ✅ **Windows Server** | 完全支持 | 推荐用于生产环境                            |
-| ✅ **Linux** | 完全支持 | 推荐用于生产环境 (Ubuntu, CentOS, Debian 等) |
-| ⚠️ **macOS** | 实验性支持 | 由于macOS Server已被苹果官方放弃,不推荐用于生产环境    |
+| 平台                   | 支持状态 | 说明                                             |
+|----------------------|------|------------------------------------------------|
+| ✅ **Windows Server** | 完全支持 | 推荐用于生产环境                                       |
+| ✅ **Linux**          | 完全支持 | 推荐用于生产环境 (Ubuntu, CentOS, Debian 等)            |
+| ✅ **macOS**          | 完全支持 | 推荐用于生产环境(支持Apple silicon和Intel)，无需macOS Server |
 
 ## 📦 快速开始
 
@@ -62,7 +62,7 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 - Rust 1.70+
 - Node.js 18+ (用于前端开发)
 - PostgreSQL 14+
-- 操作系统: Windows Server / Linux / macOS (实验性)
+- 操作系统: Windows Server / Linux / macOS
 
 ### 安装步骤
 
