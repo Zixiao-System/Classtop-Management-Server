@@ -10,7 +10,7 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 - 🔄 **数据同步** - 从客户端同步课程和课程表数据
 - 📊 **统计分析** - 查看所有客户端的统计信息
 - 🎨 **Web 管理界面** - 基于 Material Design 的现代化管理后台
-- 🗄️ **数据库支持** - 支持 PostgreSQL (SQL Server 支持即将推出)
+- 🗄️ **数据库支持** - PostgreSQL (SQL Server 支持规划中)
 
 ## ✨ 功能特性
 
@@ -64,6 +64,8 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 - PostgreSQL 14+
 - 操作系统: Windows Server / Linux / macOS
 
+> 💡 **注意**: SQL Server 支持正在规划中。目前推荐使用 PostgreSQL，它在所有平台上都有良好支持。
+
 ### 安装步骤
 
 1. **克隆项目**
@@ -79,7 +81,7 @@ cd Classtop-Management-Server
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，配置PostgreSQL数据库：
+编辑 `.env` 文件，配置 PostgreSQL 数据库：
 
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/classtop
@@ -87,7 +89,21 @@ HOST=0.0.0.0
 PORT=8765
 ```
 
-> 注意：目前仅支持 PostgreSQL，SQL Server 支持正在开发中
+> 💡 **Windows Server 用户**: 虽然 SQL Server 支持正在开发中，但 PostgreSQL 在 Windows 上同样表现出色。可以使用 [官方 Windows 安装包](https://www.postgresql.org/download/windows/) 或 Docker。
+
+<details>
+<summary><b>SQL Server 支持状态 (点击展开)</b></summary>
+
+SQL Server 支持目前处于**规划阶段**。
+
+- ✅ 数据库迁移脚本已准备 (`migrations/002_initial_mssql.sql`)
+- ✅ 配置文档已完成 (`docs/MSSQL_SETUP.md`)
+- ⏳ 运行时驱动集成待实现（需要 Tiberius crate）
+
+详见：[SQL Server 支持状态](docs/MSSQL_STATUS.md)
+
+临时解决方案：在 Windows Server 上使用 PostgreSQL（完全支持）
+</details>
 
 3. **构建前端**
 
@@ -243,7 +259,7 @@ POST /api/sync
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| DATABASE_URL | 数据库连接字符串 | - |
+| DATABASE_URL | PostgreSQL 数据库连接字符串 | - |
 | HOST | 服务器监听地址 | 0.0.0.0 |
 | PORT | 服务器端口 | 8765 |
 | APP_VERSION | 应用版本 | 1.0.0 |
@@ -283,10 +299,14 @@ Classtop-Management-Server/
 │   └── package.json         # 前端依赖
 ├── migrations/              # 数据库迁移文件
 │   ├── 001_initial_postgresql.sql
-│   └── 001_initial_mssql.sql
+│   └── 002_initial_mssql.sql
 ├── static/                  # 前端构建输出 (由 frontend/npm run build 生成)
 ├── docs/                    # 文档
-│   └── API.md              # ClassTop 客户端 API 文档
+│   ├── ClassTop-Client-API.md         # ClassTop 客户端 API 文档
+│   ├── CLIENT_ADAPTATION.md           # 客户端适配指南
+│   ├── CLIENT_INTEGRATION_TODO.md     # 客户端集成任务清单
+│   ├── MSSQL_SETUP.md                 # SQL Server 配置指南（规划中）
+│   └── MSSQL_STATUS.md                # SQL Server 支持状态
 ├── Cargo.toml               # Rust 项目依赖
 ├── .env.example             # 环境变量示例
 └── README.md                # 项目说明

@@ -8,7 +8,7 @@ ClassTop Management Server is a centralized management server for [ClassTop](htt
 
 **Technology Stack:**
 - Backend: Rust (Actix-Web 4.9, SQLx)
-- Database: PostgreSQL
+- Database: PostgreSQL (SQL Server support planned)
 - API Documentation: utoipa (OpenAPI/Swagger)
 - Frontend: Vue 3 + Vite + MDUI 2 (Material Design)
 
@@ -58,7 +58,7 @@ npm run preview
 ### Environment Setup
 
 1. Copy `.env.example` to `.env`
-2. Configure PostgreSQL database URL:
+2. Configure PostgreSQL database:
    ```env
    DATABASE_URL=postgresql://username:password@localhost:5432/classtop
    HOST=0.0.0.0
@@ -67,8 +67,13 @@ npm run preview
 
 ### Database
 
-- Migrations are run automatically on startup via `db::run_migrations()`
-- Migration files located in `migrations/001_initial_postgresql.sql`
+**Supported Databases:**
+- PostgreSQL 14+ (fully supported)
+- Microsoft SQL Server (planned - see `docs/MSSQL_STATUS.md`)
+
+**Migration System:**
+- Migrations run automatically on startup via `db::run_migrations(pool)`
+- Migration file: `migrations/001_initial_postgresql.sql`
 - Uses SQLx with connection pooling (max 10 connections, 30s timeout)
 
 ## Architecture

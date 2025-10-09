@@ -26,14 +26,7 @@ async fn main() -> anyhow::Result<()> {
         "Starting ClassTop Management Server v{}",
         config.app_version
     );
-    info!(
-        "Database: {}",
-        if config.database_url.contains("postgres") {
-            "PostgreSQL"
-        } else {
-            "SQL Server"
-        }
-    );
+    info!("Database: PostgreSQL");
 
     // Initialize database connection pool
     let db_pool = db::create_pool(&config.database_url).await?;
