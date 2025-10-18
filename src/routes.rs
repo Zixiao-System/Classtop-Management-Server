@@ -20,6 +20,13 @@ use utoipa::OpenApi;
         handlers::get_settings,
         handlers::get_setting,
         handlers::update_setting,
+        handlers::register_lms,
+        handlers::lms_heartbeat,
+        handlers::list_lms,
+        handlers::get_lms,
+        handlers::get_lms_clients,
+        handlers::delete_lms,
+        handlers::get_lms_statistics,
     ),
     components(
         schemas(
@@ -32,6 +39,10 @@ use utoipa::OpenApi;
             ApiResponse<Statistics>,
             ApiResponse<Vec<ClientStatistics>>,
             ApiResponse<Setting>,
+            ApiResponse<Vec<LMSInstance>>,
+            ApiResponse<LMSInstance>,
+            ApiResponse<RegisterLMSResponse>,
+            ApiResponse<LMSStatistics>,
             HealthResponse,
             Client,
             RegisterClient,
@@ -48,6 +59,12 @@ use utoipa::OpenApi;
             UpdateSetting,
             MessageResponse,
             RootResponse,
+            LMSInstance,
+            RegisterLMSRequest,
+            RegisterLMSResponse,
+            LMSHeartbeatRequest,
+            LMSClientInfo,
+            LMSStatistics,
         )
     ),
     tags(
@@ -56,6 +73,7 @@ use utoipa::OpenApi;
         (name = "Sync", description = "Data synchronization"),
         (name = "Statistics", description = "Statistics"),
         (name = "Settings", description = "Settings management"),
+        (name = "LMS Management", description = "Light Management Service instances management"),
     ),
     info(
         title = "ClassTop Management Server API",
@@ -105,5 +123,16 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("", web::get().to(handlers::get_settings))
                 .route("/{key}", web::get().to(handlers::get_setting))
                 .route("/{key}", web::put().to(handlers::update_setting)),
+        )
+        // LMS Management
+        .service(
+            web::scope("/lms")
+                .route("", web::get().to(handlers::list_lms))
+                .route("/register", web::post().to(handlers::register_lms))
+                .route("/heartbeat", web::post().to(handlers::lms_heartbeat))
+                .route("/statistics", web::get().to(handlers::get_lms_statistics))
+                .route("/{lms_id}", web::get().to(handlers::get_lms))
+                .route("/{lms_id}", web::delete().to(handlers::delete_lms))
+                .route("/{lms_id}/clients", web::get().to(handlers::get_lms_clients)),
         );
 }

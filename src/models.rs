@@ -262,3 +262,59 @@ pub struct ResetSettingsRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exclude: Option<Vec<String>>,
 }
+
+// LMS (Light Management Service) Models
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub struct LMSInstance {
+    pub id: String,  // UUID
+    pub lms_uuid: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+    pub port: i32,
+    pub status: String,  // online, offline, error
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_heartbeat: Option<String>,
+    pub client_count: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RegisterLMSRequest {
+    pub lms_uuid: String,
+    pub name: String,
+    pub host: String,
+    pub port: i32,
+    pub version: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RegisterLMSResponse {
+    pub lms_id: String,
+    pub api_key: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LMSHeartbeatRequest {
+    pub lms_uuid: String,
+    pub client_count: i32,
+    pub clients: Vec<LMSClientInfo>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
+pub struct LMSClientInfo {
+    pub uuid: String,
+    pub name: String,
+    pub status: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LMSStatistics {
+    pub total_lms_instances: i64,
+    pub online_lms_instances: i64,
+    pub total_clients_managed_by_lms: i64,
+}
+

@@ -274,3 +274,173 @@ pub async fn update_setting(
         message: "Setting updated".to_string(),
     })))
 }
+
+// LMS Management handlers
+#[utoipa::path(
+    post,
+    path = "/api/lms/register",
+    request_body = RegisterLMSRequest,
+    responses(
+        (status = 200, description = "LMS registered successfully", body = ApiResponse<RegisterLMSResponse>),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "LMS Management"
+)]
+pub async fn register_lms(
+    pool: web::Data<DbPool>,
+    req: web::Json<RegisterLMSRequest>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+
+    // Generate API Key
+    let api_key = generate_api_key();
+
+    // Register LMS
+    let lms_id = repo
+        .register_lms(
+            &req.lms_uuid,
+            &req.name,
+            &req.host,
+            req.port,
+            &api_key,
+            &req.version,
+        )
+        .await?;
+
+    let response = RegisterLMSResponse { lms_id, api_key };
+
+    Ok(HttpResponse::Ok().json(ApiResponse::new(response)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/lms/heartbeat",
+    request_body = LMSHeartbeatRequest,
+    responses(
+        (status = 200, description = "Heartbeat received"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "LMS not found")
+    ),
+    tag = "LMS Management"
+)]
+pub async fn lms_heartbeat(
+    pool: web::Data<DbPool>,
+    req: web::Json<LMSHeartbeatRequest>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+
+    // Update LMS heartbeat
+    repo.update_lms_heartbeat(&req.lms_uuid, req.client_count, &req.clients)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse::new(MessageResponse {
+        message: "Heartbeat received".to_string(),
+    })))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/lms",
+    responses(
+        (status = 200, description = "List of LMS instances", body = ApiResponse<Vec<LMSInstance>>)
+    ),
+    tag = "LMS Management"
+)]
+pub async fn list_lms(pool: web::Data<DbPool>) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+    let instances = repo.get_all_lms_instances().await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::new(instances)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/lms/{lms_id}",
+    params(
+        ("lms_id" = String, Path, description = "LMS instance ID")
+    ),
+    responses(
+        (status = 200, description = "LMS instance details", body = ApiResponse<LMSInstance>),
+        (status = 404, description = "LMS not found")
+    ),
+    tag = "LMS Management"
+)]
+pub async fn get_lms(
+    pool: web::Data<DbPool>,
+    lms_id: web::Path<String>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+    let instance = repo.get_lms_by_id(&lms_id).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::new(instance)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/lms/{lms_id}/clients",
+    params(
+        ("lms_id" = String, Path, description = "LMS instance ID")
+    ),
+    responses(
+        (status = 200, description = "List of clients managed by this LMS", body = ApiResponse<Vec<Client>>)
+    ),
+    tag = "LMS Management"
+)]
+pub async fn get_lms_clients(
+    pool: web::Data<DbPool>,
+    lms_id: web::Path<String>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+    let clients = repo.get_clients_by_lms(&lms_id).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::new(clients)))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/lms/{lms_id}",
+    params(
+        ("lms_id" = String, Path, description = "LMS instance ID")
+    ),
+    responses(
+        (status = 200, description = "LMS deleted successfully"),
+        (status = 404, description = "LMS not found")
+    ),
+    tag = "LMS Management"
+)]
+pub async fn delete_lms(
+    pool: web::Data<DbPool>,
+    lms_id: web::Path<String>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+    repo.delete_lms(&lms_id).await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::new(MessageResponse {
+        message: "LMS deleted".to_string(),
+    })))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/lms/statistics",
+    responses(
+        (status = 200, description = "LMS statistics", body = ApiResponse<LMSStatistics>)
+    ),
+    tag = "LMS Management"
+)]
+pub async fn get_lms_statistics(pool: web::Data<DbPool>) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+    let stats = repo.get_lms_statistics().await?;
+    Ok(HttpResponse::Ok().json(ApiResponse::new(stats)))
+}
+
+// Helper function to generate API key
+fn generate_api_key() -> String {
+    use rand::Rng;
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::thread_rng();
+    (0..32)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
+}
+

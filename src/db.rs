@@ -546,5 +546,226 @@ pub mod repository {
 
             Ok(())
         }
+
+        // LMS Instance operations
+        pub async fn register_lms(
+            &self,
+            lms_uuid: &str,
+            name: &str,
+            host: &str,
+            port: i32,
+            api_key: &str,
+            version: &str,
+        ) -> AppResult<String> {
+            let row = sqlx::query(
+                "INSERT INTO lms_instances (lms_uuid, name, host, port, api_key, version, status)
+                 VALUES ($1, $2, $3, $4, $5, $6, 'online')
+                 ON CONFLICT (lms_uuid)
+                 DO UPDATE SET name = $2, host = $3, port = $4, version = $6, status = 'online', updated_at = NOW()
+                 RETURNING id"
+            )
+            .bind(lms_uuid)
+            .bind(name)
+            .bind(host)
+            .bind(port)
+            .bind(api_key)
+            .bind(version)
+            .fetch_one(&self.pool)
+            .await?;
+
+            Ok(row.get::<String, _>("id"))
+        }
+
+        pub async fn update_lms_heartbeat(
+            &self,
+            lms_uuid: &str,
+            client_count: i32,
+            clients: &[LMSClientInfo],
+        ) -> AppResult<()> {
+            // Update LMS status
+            sqlx::query(
+                "UPDATE lms_instances
+                 SET last_heartbeat = NOW(),
+                     client_count = $2,
+                     status = 'online',
+                     updated_at = NOW()
+                 WHERE lms_uuid = $1"
+            )
+            .bind(lms_uuid)
+            .bind(client_count)
+            .execute(&self.pool)
+            .await?;
+
+            // Get LMS ID
+            let lms_id_row = sqlx::query("SELECT id FROM lms_instances WHERE lms_uuid = $1")
+                .bind(lms_uuid)
+                .fetch_optional(&self.pool)
+                .await?;
+
+            if let Some(row) = lms_id_row {
+                let lms_id: String = row.get("id");
+
+                // Log heartbeat
+                sqlx::query(
+                    "INSERT INTO lms_heartbeats (lms_id, client_count)
+                     VALUES ($1, $2)"
+                )
+                .bind(&lms_id)
+                .bind(client_count)
+                .execute(&self.pool)
+                .await?;
+
+                // Update client-LMS mapping
+                for client in clients {
+                    // Try to find the client ID
+                    let client_id_row = sqlx::query("SELECT id FROM clients WHERE uuid = $1")
+                        .bind(&client.uuid)
+                        .fetch_optional(&self.pool)
+                        .await?;
+
+                    if let Some(c_row) = client_id_row {
+                        let client_id: String = c_row.get("id");
+
+                        sqlx::query(
+                            "INSERT INTO lms_client_mapping (lms_id, client_id)
+                             VALUES ($1, $2)
+                             ON CONFLICT (lms_id, client_id) DO NOTHING"
+                        )
+                        .bind(&lms_id)
+                        .bind(&client_id)
+                        .execute(&self.pool)
+                        .await
+                        .ok(); // Ignore errors
+                    }
+                }
+            }
+
+            Ok(())
+        }
+
+        pub async fn get_all_lms_instances(&self) -> AppResult<Vec<LMSInstance>> {
+            let rows = sqlx::query(
+                "SELECT id, lms_uuid, name, host, port, status,
+                        last_heartbeat, client_count, version,
+                        created_at, updated_at
+                 FROM lms_instances
+                 ORDER BY created_at DESC"
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
+            let instances = rows
+                .iter()
+                .map(|row| LMSInstance {
+                    id: row.get("id"),
+                    lms_uuid: row.get("lms_uuid"),
+                    name: row.get("name"),
+                    host: row.try_get("host").ok(),
+                    port: row.get("port"),
+                    status: row.get("status"),
+                    last_heartbeat: row.try_get::<String, _>("last_heartbeat").ok(),
+                    client_count: row.get("client_count"),
+                    version: row.try_get("version").ok(),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                })
+                .collect();
+
+            Ok(instances)
+        }
+
+        pub async fn get_lms_by_id(&self, lms_id: &str) -> AppResult<LMSInstance> {
+            let row = sqlx::query(
+                "SELECT id, lms_uuid, name, host, port, status,
+                        last_heartbeat, client_count, version,
+                        created_at, updated_at
+                 FROM lms_instances
+                 WHERE id = $1"
+            )
+            .bind(lms_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+            match row {
+                Some(row) => Ok(LMSInstance {
+                    id: row.get("id"),
+                    lms_uuid: row.get("lms_uuid"),
+                    name: row.get("name"),
+                    host: row.try_get("host").ok(),
+                    port: row.get("port"),
+                    status: row.get("status"),
+                    last_heartbeat: row.try_get::<String, _>("last_heartbeat").ok(),
+                    client_count: row.get("client_count"),
+                    version: row.try_get("version").ok(),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                }),
+                None => Err(AppError::NotFound("LMS instance not found".to_string())),
+            }
+        }
+
+        pub async fn get_clients_by_lms(&self, lms_id: &str) -> AppResult<Vec<Client>> {
+            let rows = sqlx::query(
+                "SELECT c.id, c.uuid, c.name, c.description, c.api_url, c.api_key,
+                        c.last_sync, c.status, c.created_at
+                 FROM clients c
+                 INNER JOIN lms_client_mapping lcm ON c.id = lcm.client_id
+                 WHERE lcm.lms_id = $1
+                 ORDER BY c.name"
+            )
+            .bind(lms_id)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let clients = rows
+                .iter()
+                .map(|row| Client {
+                    id: row.get("id"),
+                    uuid: row.get("uuid"),
+                    name: row.get("name"),
+                    description: row.try_get("description").ok(),
+                    api_url: row.get("api_url"),
+                    api_key: row.try_get("api_key").ok(),
+                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    status: row.get("status"),
+                    created_at: row.get("created_at"),
+                })
+                .collect();
+
+            Ok(clients)
+        }
+
+        pub async fn delete_lms(&self, lms_id: &str) -> AppResult<()> {
+            sqlx::query("DELETE FROM lms_instances WHERE id = $1")
+                .bind(lms_id)
+                .execute(&self.pool)
+                .await?;
+
+            Ok(())
+        }
+
+        pub async fn get_lms_statistics(&self) -> AppResult<LMSStatistics> {
+            let total: i64 = sqlx::query("SELECT COUNT(*) as count FROM lms_instances")
+                .fetch_one(&self.pool)
+                .await?
+                .get("count");
+
+            let online: i64 = sqlx::query("SELECT COUNT(*) as count FROM lms_instances WHERE status = 'online'")
+                .fetch_one(&self.pool)
+                .await?
+                .get("count");
+
+            let total_clients: i64 = sqlx::query("SELECT SUM(client_count) as sum FROM lms_instances")
+                .fetch_one(&self.pool)
+                .await?
+                .try_get("sum")
+                .unwrap_or(0);
+
+            Ok(LMSStatistics {
+                total_lms_instances: total,
+                online_lms_instances: online,
+                total_clients_managed_by_lms: total_clients,
+            })
+        }
     }
 }
