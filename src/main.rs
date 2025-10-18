@@ -4,6 +4,7 @@ mod error;
 mod handlers;
 mod models;
 mod routes;
+mod websocket;
 
 use actix_cors::Cors;
 use actix_files::Files;
@@ -39,17 +40,26 @@ async fn main() -> anyhow::Result<()> {
     let bind_address = format!("{}:{}", config.host, config.port);
     info!("Server starting on http://{}", bind_address);
 
+    // Initialize WebSocket connection manager
+    let ws_manager = actix_web::web::Data::new(websocket::WSConnectionManager::new());
+
     // Start HTTP server
     HttpServer::new(move || {
         let cors = Cors::permissive();
 
         App::new()
             .app_data(web::Data::new(db_pool.clone()))
+            .app_data(ws_manager.clone())
             .wrap(cors)
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
             // Root endpoint
             .route("/", web::get().to(routes::root))
+            // WebSocket endpoint
+            .route("/ws", web::get().to(websocket::ws_endpoint))
+            // WebSocket control endpoints
+            .route("/api/control/command", web::post().to(websocket::send_command))
+            .route("/api/control/status", web::get().to(websocket::get_connections_status))
             // API routes
             .service(web::scope("/api").configure(routes::configure_routes))
             // Swagger UI

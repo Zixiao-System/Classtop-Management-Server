@@ -767,5 +767,207 @@ pub mod repository {
                 total_clients_managed_by_lms: total_clients,
             })
         }
+
+        // CCTV operations
+        pub async fn create_cctv_config(
+            &self,
+            client_id: i32,
+            camera_id: &str,
+            camera_name: &str,
+            rtsp_url: Option<&str>,
+        ) -> AppResult<CCTVConfig> {
+            let row = sqlx::query(
+                "INSERT INTO cctv_configs (client_id, camera_id, camera_name, rtsp_url)
+                 VALUES ($1, $2, $3, $4)
+                 RETURNING id, client_id, camera_id, camera_name, rtsp_url,
+                           recording_enabled, streaming_enabled, created_at, updated_at"
+            )
+            .bind(client_id)
+            .bind(camera_id)
+            .bind(camera_name)
+            .bind(rtsp_url)
+            .fetch_one(&self.pool)
+            .await?;
+
+            Ok(CCTVConfig {
+                id: row.get("id"),
+                client_id: row.get("client_id"),
+                camera_id: row.get("camera_id"),
+                camera_name: row.get("camera_name"),
+                rtsp_url: row.try_get("rtsp_url").ok(),
+                recording_enabled: row.get("recording_enabled"),
+                streaming_enabled: row.get("streaming_enabled"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+        }
+
+        pub async fn get_cctv_configs_by_client(&self, client_id: i32) -> AppResult<Vec<CCTVConfig>> {
+            let rows = sqlx::query(
+                "SELECT id, client_id, camera_id, camera_name, rtsp_url,
+                        recording_enabled, streaming_enabled, created_at, updated_at
+                 FROM cctv_configs
+                 WHERE client_id = $1
+                 ORDER BY created_at DESC"
+            )
+            .bind(client_id)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let configs = rows
+                .iter()
+                .map(|row| CCTVConfig {
+                    id: row.get("id"),
+                    client_id: row.get("client_id"),
+                    camera_id: row.get("camera_id"),
+                    camera_name: row.get("camera_name"),
+                    rtsp_url: row.try_get("rtsp_url").ok(),
+                    recording_enabled: row.get("recording_enabled"),
+                    streaming_enabled: row.get("streaming_enabled"),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                })
+                .collect();
+
+            Ok(configs)
+        }
+
+        pub async fn get_cctv_config_by_id(&self, config_id: &str) -> AppResult<CCTVConfig> {
+            let row = sqlx::query(
+                "SELECT id, client_id, camera_id, camera_name, rtsp_url,
+                        recording_enabled, streaming_enabled, created_at, updated_at
+                 FROM cctv_configs
+                 WHERE id = $1"
+            )
+            .bind(config_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+            match row {
+                Some(row) => Ok(CCTVConfig {
+                    id: row.get("id"),
+                    client_id: row.get("client_id"),
+                    camera_id: row.get("camera_id"),
+                    camera_name: row.get("camera_name"),
+                    rtsp_url: row.try_get("rtsp_url").ok(),
+                    recording_enabled: row.get("recording_enabled"),
+                    streaming_enabled: row.get("streaming_enabled"),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                }),
+                None => Err(AppError::NotFound("CCTV config not found".to_string())),
+            }
+        }
+
+        pub async fn update_cctv_config(
+            &self,
+            config_id: &str,
+            camera_name: Option<&str>,
+            rtsp_url: Option<&str>,
+            recording_enabled: Option<bool>,
+            streaming_enabled: Option<bool>,
+        ) -> AppResult<()> {
+            let mut query = String::from("UPDATE cctv_configs SET updated_at = NOW()");
+            let mut bind_count = 1;
+
+            if camera_name.is_some() {
+                query.push_str(&format!(", camera_name = ${}", bind_count));
+                bind_count += 1;
+            }
+            if rtsp_url.is_some() {
+                query.push_str(&format!(", rtsp_url = ${}", bind_count));
+                bind_count += 1;
+            }
+            if recording_enabled.is_some() {
+                query.push_str(&format!(", recording_enabled = ${}", bind_count));
+                bind_count += 1;
+            }
+            if streaming_enabled.is_some() {
+                query.push_str(&format!(", streaming_enabled = ${}", bind_count));
+                bind_count += 1;
+            }
+
+            query.push_str(&format!(" WHERE id = ${}", bind_count));
+
+            let mut q = sqlx::query(&query);
+
+            if let Some(name) = camera_name {
+                q = q.bind(name);
+            }
+            if let Some(url) = rtsp_url {
+                q = q.bind(url);
+            }
+            if let Some(rec) = recording_enabled {
+                q = q.bind(rec);
+            }
+            if let Some(stream) = streaming_enabled {
+                q = q.bind(stream);
+            }
+
+            q = q.bind(config_id);
+
+            q.execute(&self.pool).await?;
+
+            Ok(())
+        }
+
+        pub async fn delete_cctv_config(&self, config_id: &str) -> AppResult<()> {
+            sqlx::query("DELETE FROM cctv_configs WHERE id = $1")
+                .bind(config_id)
+                .execute(&self.pool)
+                .await?;
+
+            Ok(())
+        }
+
+        pub async fn log_cctv_event(
+            &self,
+            camera_config_id: &str,
+            event_type: &str,
+            details: Option<serde_json::Value>,
+        ) -> AppResult<()> {
+            sqlx::query(
+                "INSERT INTO cctv_events (camera_config_id, event_type, details)
+                 VALUES ($1, $2, $3)"
+            )
+            .bind(camera_config_id)
+            .bind(event_type)
+            .bind(details)
+            .execute(&self.pool)
+            .await?;
+
+            Ok(())
+        }
+
+        pub async fn get_cctv_events_by_config(
+            &self,
+            camera_config_id: &str,
+            limit: i64,
+        ) -> AppResult<Vec<CCTVEvent>> {
+            let rows = sqlx::query(
+                "SELECT id, camera_config_id, event_type, details, created_at
+                 FROM cctv_events
+                 WHERE camera_config_id = $1
+                 ORDER BY created_at DESC
+                 LIMIT $2"
+            )
+            .bind(camera_config_id)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let events = rows
+                .iter()
+                .map(|row| CCTVEvent {
+                    id: row.get("id"),
+                    camera_config_id: row.get("camera_config_id"),
+                    event_type: row.get("event_type"),
+                    details: row.try_get("details").ok(),
+                    created_at: row.get("created_at"),
+                })
+                .collect();
+
+            Ok(events)
+        }
     }
 }

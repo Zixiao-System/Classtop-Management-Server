@@ -318,3 +318,57 @@ pub struct LMSStatistics {
     pub total_clients_managed_by_lms: i64,
 }
 
+// CCTV Models
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub struct CCTVConfig {
+    pub id: String,  // UUID
+    pub client_id: i32,
+    pub camera_id: String,
+    pub camera_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rtsp_url: Option<String>,
+    pub recording_enabled: bool,
+    pub streaming_enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateCCTVRequest {
+    pub client_id: i32,
+    pub camera_id: String,
+    pub camera_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rtsp_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateCCTVRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub camera_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rtsp_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recording_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub streaming_enabled: Option<bool>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CCTVEvent {
+    pub id: i32,
+    pub camera_config_id: String,
+    pub event_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LogCCTVEventRequest {
+    pub camera_config_id: String,
+    pub event_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
+}
+
