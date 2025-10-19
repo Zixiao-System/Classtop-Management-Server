@@ -133,6 +133,9 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                 .route("/statistics", web::get().to(handlers::get_lms_statistics))
                 .route("/{lms_id}", web::get().to(handlers::get_lms))
                 .route("/{lms_id}", web::delete().to(handlers::delete_lms))
-                .route("/{lms_id}/clients", web::get().to(handlers::get_lms_clients)),
+                .route(
+                    "/{lms_id}/clients",
+                    web::get().to(handlers::get_lms_clients),
+                ),
         );
 }

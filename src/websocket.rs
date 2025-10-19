@@ -1,11 +1,13 @@
-use actix::{Actor, StreamHandler, Handler, Message as ActixMessage, AsyncContext, ActorContext, Addr};
-use actix_web::{web, HttpRequest, HttpResponse, Error};
+use actix::{
+    Actor, ActorContext, Addr, AsyncContext, Handler, Message as ActixMessage, StreamHandler,
+};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
-use log::{info, warn, error};
 
 /// WebSocket 消息类型
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -137,7 +139,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WSConnection {
 impl WSConnection {
     fn handle_ws_message(&mut self, msg: WSMessage, ctx: &mut ws::WebsocketContext<Self>) {
         match msg {
-            WSMessage::Register { client_uuid, client_type } => {
+            WSMessage::Register {
+                client_uuid,
+                client_type,
+            } => {
                 self.uuid = Some(client_uuid);
                 self.client_type = Some(client_type.clone());
                 self.manager.register(client_uuid, ctx.address());
@@ -202,11 +207,7 @@ pub async fn ws_endpoint(
     stream: web::Payload,
     manager: web::Data<WSConnectionManager>,
 ) -> Result<HttpResponse, Error> {
-    ws::start(
-        WSConnection::new(manager),
-        &req,
-        stream,
-    )
+    ws::start(WSConnection::new(manager), &req, stream)
 }
 
 /// HTTP API：向客户端发送命令

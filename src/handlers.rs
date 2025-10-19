@@ -443,4 +443,3 @@ fn generate_api_key() -> String {
         })
         .collect()
 }
-

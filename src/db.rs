@@ -589,7 +589,7 @@ pub mod repository {
                      client_count = $2,
                      status = 'online',
                      updated_at = NOW()
-                 WHERE lms_uuid = $1"
+                 WHERE lms_uuid = $1",
             )
             .bind(lms_uuid)
             .bind(client_count)
@@ -608,7 +608,7 @@ pub mod repository {
                 // Log heartbeat
                 sqlx::query(
                     "INSERT INTO lms_heartbeats (lms_id, client_count)
-                     VALUES ($1, $2)"
+                     VALUES ($1, $2)",
                 )
                 .bind(&lms_id)
                 .bind(client_count)
@@ -629,7 +629,7 @@ pub mod repository {
                         sqlx::query(
                             "INSERT INTO lms_client_mapping (lms_id, client_id)
                              VALUES ($1, $2)
-                             ON CONFLICT (lms_id, client_id) DO NOTHING"
+                             ON CONFLICT (lms_id, client_id) DO NOTHING",
                         )
                         .bind(&lms_id)
                         .bind(&client_id)
@@ -649,7 +649,7 @@ pub mod repository {
                         last_heartbeat, client_count, version,
                         created_at, updated_at
                  FROM lms_instances
-                 ORDER BY created_at DESC"
+                 ORDER BY created_at DESC",
             )
             .fetch_all(&self.pool)
             .await?;
@@ -680,7 +680,7 @@ pub mod repository {
                         last_heartbeat, client_count, version,
                         created_at, updated_at
                  FROM lms_instances
-                 WHERE id = $1"
+                 WHERE id = $1",
             )
             .bind(lms_id)
             .fetch_optional(&self.pool)
@@ -711,7 +711,7 @@ pub mod repository {
                  FROM clients c
                  INNER JOIN lms_client_mapping lcm ON c.id = lcm.client_id
                  WHERE lcm.lms_id = $1
-                 ORDER BY c.name"
+                 ORDER BY c.name",
             )
             .bind(lms_id)
             .fetch_all(&self.pool)
@@ -750,16 +750,18 @@ pub mod repository {
                 .await?
                 .get("count");
 
-            let online: i64 = sqlx::query("SELECT COUNT(*) as count FROM lms_instances WHERE status = 'online'")
-                .fetch_one(&self.pool)
-                .await?
-                .get("count");
+            let online: i64 =
+                sqlx::query("SELECT COUNT(*) as count FROM lms_instances WHERE status = 'online'")
+                    .fetch_one(&self.pool)
+                    .await?
+                    .get("count");
 
-            let total_clients: i64 = sqlx::query("SELECT SUM(client_count) as sum FROM lms_instances")
-                .fetch_one(&self.pool)
-                .await?
-                .try_get("sum")
-                .unwrap_or(0);
+            let total_clients: i64 =
+                sqlx::query("SELECT SUM(client_count) as sum FROM lms_instances")
+                    .fetch_one(&self.pool)
+                    .await?
+                    .try_get("sum")
+                    .unwrap_or(0);
 
             Ok(LMSStatistics {
                 total_lms_instances: total,
@@ -769,6 +771,7 @@ pub mod repository {
         }
 
         // CCTV operations
+        #[allow(dead_code)]
         pub async fn create_cctv_config(
             &self,
             client_id: i32,
@@ -780,7 +783,7 @@ pub mod repository {
                 "INSERT INTO cctv_configs (client_id, camera_id, camera_name, rtsp_url)
                  VALUES ($1, $2, $3, $4)
                  RETURNING id, client_id, camera_id, camera_name, rtsp_url,
-                           recording_enabled, streaming_enabled, created_at, updated_at"
+                           recording_enabled, streaming_enabled, created_at, updated_at",
             )
             .bind(client_id)
             .bind(camera_id)
@@ -802,13 +805,17 @@ pub mod repository {
             })
         }
 
-        pub async fn get_cctv_configs_by_client(&self, client_id: i32) -> AppResult<Vec<CCTVConfig>> {
+        #[allow(dead_code)]
+        pub async fn get_cctv_configs_by_client(
+            &self,
+            client_id: i32,
+        ) -> AppResult<Vec<CCTVConfig>> {
             let rows = sqlx::query(
                 "SELECT id, client_id, camera_id, camera_name, rtsp_url,
                         recording_enabled, streaming_enabled, created_at, updated_at
                  FROM cctv_configs
                  WHERE client_id = $1
-                 ORDER BY created_at DESC"
+                 ORDER BY created_at DESC",
             )
             .bind(client_id)
             .fetch_all(&self.pool)
@@ -832,12 +839,13 @@ pub mod repository {
             Ok(configs)
         }
 
+        #[allow(dead_code)]
         pub async fn get_cctv_config_by_id(&self, config_id: &str) -> AppResult<CCTVConfig> {
             let row = sqlx::query(
                 "SELECT id, client_id, camera_id, camera_name, rtsp_url,
                         recording_enabled, streaming_enabled, created_at, updated_at
                  FROM cctv_configs
-                 WHERE id = $1"
+                 WHERE id = $1",
             )
             .bind(config_id)
             .fetch_optional(&self.pool)
@@ -859,6 +867,7 @@ pub mod repository {
             }
         }
 
+        #[allow(dead_code)]
         pub async fn update_cctv_config(
             &self,
             config_id: &str,
@@ -911,6 +920,7 @@ pub mod repository {
             Ok(())
         }
 
+        #[allow(dead_code)]
         pub async fn delete_cctv_config(&self, config_id: &str) -> AppResult<()> {
             sqlx::query("DELETE FROM cctv_configs WHERE id = $1")
                 .bind(config_id)
@@ -920,6 +930,7 @@ pub mod repository {
             Ok(())
         }
 
+        #[allow(dead_code)]
         pub async fn log_cctv_event(
             &self,
             camera_config_id: &str,
@@ -928,7 +939,7 @@ pub mod repository {
         ) -> AppResult<()> {
             sqlx::query(
                 "INSERT INTO cctv_events (camera_config_id, event_type, details)
-                 VALUES ($1, $2, $3)"
+                 VALUES ($1, $2, $3)",
             )
             .bind(camera_config_id)
             .bind(event_type)
@@ -939,6 +950,7 @@ pub mod repository {
             Ok(())
         }
 
+        #[allow(dead_code)]
         pub async fn get_cctv_events_by_config(
             &self,
             camera_config_id: &str,
@@ -949,7 +961,7 @@ pub mod repository {
                  FROM cctv_events
                  WHERE camera_config_id = $1
                  ORDER BY created_at DESC
-                 LIMIT $2"
+                 LIMIT $2",
             )
             .bind(camera_config_id)
             .bind(limit)

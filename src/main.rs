@@ -58,8 +58,14 @@ async fn main() -> anyhow::Result<()> {
             // WebSocket endpoint
             .route("/ws", web::get().to(websocket::ws_endpoint))
             // WebSocket control endpoints
-            .route("/api/control/command", web::post().to(websocket::send_command))
-            .route("/api/control/status", web::get().to(websocket::get_connections_status))
+            .route(
+                "/api/control/command",
+                web::post().to(websocket::send_command),
+            )
+            .route(
+                "/api/control/status",
+                web::get().to(websocket::get_connections_status),
+            )
             // API routes
             .service(web::scope("/api").configure(routes::configure_routes))
             // Swagger UI

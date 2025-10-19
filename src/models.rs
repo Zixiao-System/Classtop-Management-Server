@@ -266,13 +266,13 @@ pub struct ResetSettingsRequest {
 // LMS (Light Management Service) Models
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct LMSInstance {
-    pub id: String,  // UUID
+    pub id: String, // UUID
     pub lms_uuid: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
     pub port: i32,
-    pub status: String,  // online, offline, error
+    pub status: String, // online, offline, error
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_heartbeat: Option<String>,
     pub client_count: i32,
@@ -319,9 +319,10 @@ pub struct LMSStatistics {
 }
 
 // CCTV Models
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
 pub struct CCTVConfig {
-    pub id: String,  // UUID
+    pub id: String, // UUID
     pub client_id: i32,
     pub camera_id: String,
     pub camera_name: String,
@@ -333,6 +334,7 @@ pub struct CCTVConfig {
     pub updated_at: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateCCTVRequest {
     pub client_id: i32,
@@ -342,6 +344,7 @@ pub struct CreateCCTVRequest {
     pub rtsp_url: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateCCTVRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -354,6 +357,7 @@ pub struct UpdateCCTVRequest {
     pub streaming_enabled: Option<bool>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CCTVEvent {
     pub id: i32,
@@ -364,6 +368,7 @@ pub struct CCTVEvent {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct LogCCTVEventRequest {
     pub camera_config_id: String,
@@ -371,4 +376,3 @@ pub struct LogCCTVEventRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
 }
-
