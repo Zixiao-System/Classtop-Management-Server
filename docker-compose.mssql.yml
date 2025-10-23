@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # SQL Server 2022 (支持 Apple Silicon 和 Intel Mac)
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: classtop-mssql-dev
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "ClassTop@2024Dev!"
+      MSSQL_PID: "Developer"
+      MSSQL_TCP_PORT: 1433
+    ports:
+      - "1433:1433"
+    volumes:
+      # 数据持久化
+      - mssql_data:/var/opt/mssql/data
+      # 日志持久化
+      - mssql_log:/var/opt/mssql/log
+      # 初始化脚本
+      - ./docker/mssql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - classtop_network
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "ClassTop@2024Dev!", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Azure Data Studio Web (可选 - 方便 GUI 管理)
+  # azuredatastudio:
+  #   image: mcr.microsoft.com/azuredatastudio:latest
+  #   container_name: classtop-azuredatastudio
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - classtop_network
+  #   depends_on:
+  #     - sqlserver
+
+volumes:
+  mssql_data:
+    driver: local
+  mssql_log:
+    driver: local
+
+networks:
+  classtop_network:
+    driver: bridge
