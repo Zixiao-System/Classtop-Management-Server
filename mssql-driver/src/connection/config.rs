@@ -66,7 +66,7 @@ impl ConnectionConfig {
         // For now, return a basic implementation
         if !conn_str.starts_with("mssql://") && !conn_str.starts_with("sqlserver://") {
             return Err(Error::InvalidConfig(
-                "Connection string must start with 'mssql://' or 'sqlserver://'".to_string()
+                "Connection string must start with 'mssql://' or 'sqlserver://'".to_string(),
             ));
         }
 
@@ -79,12 +79,16 @@ impl ConnectionConfig {
         // Basic parsing (to be improved)
         let parts: Vec<&str> = without_protocol.split('@').collect();
         if parts.len() != 2 {
-            return Err(Error::InvalidConfig("Invalid connection string format".to_string()));
+            return Err(Error::InvalidConfig(
+                "Invalid connection string format".to_string(),
+            ));
         }
 
         let auth_parts: Vec<&str> = parts[0].split(':').collect();
         if auth_parts.len() != 2 {
-            return Err(Error::InvalidConfig("Invalid authentication format".to_string()));
+            return Err(Error::InvalidConfig(
+                "Invalid authentication format".to_string(),
+            ));
         }
 
         let username = auth_parts[0].to_string();
@@ -104,7 +108,11 @@ impl ConnectionConfig {
         };
 
         let database = if server_parts.len() > 1 {
-            server_parts[1].split('?').next().unwrap_or("master").to_string()
+            server_parts[1]
+                .split('?')
+                .next()
+                .unwrap_or("master")
+                .to_string()
         } else {
             "master".to_string()
         };

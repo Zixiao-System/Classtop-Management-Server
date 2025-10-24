@@ -66,9 +66,7 @@ impl Parameter {
             Parameter::Float(v) => v.to_le_bytes().to_vec(),
             Parameter::NVarChar(s) => {
                 // UCS-2 LE encoding
-                let utf16: Vec<u8> = s.encode_utf16()
-                    .flat_map(|c| c.to_le_bytes())
-                    .collect();
+                let utf16: Vec<u8> = s.encode_utf16().flat_map(|c| c.to_le_bytes()).collect();
                 utf16
             }
             Parameter::UniqueIdentifier(uuid) => uuid.as_bytes().to_vec(),
@@ -140,6 +138,9 @@ mod tests {
     #[test]
     fn test_parameter_sql_type() {
         assert_eq!(Parameter::Int(42).sql_type(), "INT");
-        assert_eq!(Parameter::NVarChar("test".to_string()).sql_type(), "NVARCHAR(MAX)");
+        assert_eq!(
+            Parameter::NVarChar("test".to_string()).sql_type(),
+            "NVARCHAR(MAX)"
+        );
     }
 }

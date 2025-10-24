@@ -4,16 +4,14 @@ use crate::error::{Error, Result};
 
 /// Encode string to UCS-2 LE (SQL Server internal encoding)
 pub fn encode_ucs2_le(s: &str) -> Vec<u8> {
-    s.encode_utf16()
-        .flat_map(|c| c.to_le_bytes())
-        .collect()
+    s.encode_utf16().flat_map(|c| c.to_le_bytes()).collect()
 }
 
 /// Decode UCS-2 LE bytes to String
 pub fn decode_ucs2_le(bytes: &[u8]) -> Result<String> {
     if bytes.len() % 2 != 0 {
         return Err(Error::EncodingError(
-            "Invalid UCS-2 LE byte sequence (odd length)".to_string()
+            "Invalid UCS-2 LE byte sequence (odd length)".to_string(),
         ));
     }
 
@@ -58,13 +56,16 @@ mod tests {
         let encoded = encode_ucs2_le(input);
 
         // "hello" in UCS-2 LE
-        assert_eq!(encoded, vec![
-            0x68, 0x00, // h
-            0x65, 0x00, // e
-            0x6C, 0x00, // l
-            0x6C, 0x00, // l
-            0x6F, 0x00, // o
-        ]);
+        assert_eq!(
+            encoded,
+            vec![
+                0x68, 0x00, // h
+                0x65, 0x00, // e
+                0x6C, 0x00, // l
+                0x6C, 0x00, // l
+                0x6F, 0x00, // o
+            ]
+        );
 
         let decoded = decode_ucs2_le(&encoded).unwrap();
         assert_eq!(decoded, input);

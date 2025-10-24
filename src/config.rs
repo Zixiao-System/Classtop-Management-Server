@@ -38,13 +38,17 @@ impl Config {
         let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
         // Auto-detect database type from connection string
-        let database_type = if database_url.starts_with("postgresql://") || database_url.starts_with("postgres://") {
+        let database_type = if database_url.starts_with("postgresql://")
+            || database_url.starts_with("postgres://")
+        {
             DatabaseType::PostgreSQL
         } else if database_url.starts_with("mssql://") || database_url.starts_with("sqlserver://") {
             DatabaseType::MSSQL
         } else {
             // Fallback: check DATABASE_TYPE env var
-            DatabaseType::from_str(&env::var("DATABASE_TYPE").unwrap_or_else(|_| "postgresql".to_string()))?
+            DatabaseType::from_str(
+                &env::var("DATABASE_TYPE").unwrap_or_else(|_| "postgresql".to_string()),
+            )?
         };
 
         Ok(Config {

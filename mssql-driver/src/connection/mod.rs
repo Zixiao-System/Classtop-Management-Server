@@ -46,13 +46,12 @@ impl Connection {
 
         // Step 1: Establish TCP connection
         let addr = format!("{}:{}", config.host, config.port);
-        let stream = tokio::time::timeout(
-            config.connect_timeout,
-            TcpStream::connect(&addr)
-        )
-        .await
-        .map_err(|_| Error::Timeout(format!("Connection to {} timed out", addr)))?
-        .map_err(|e| Error::ConnectionFailed(format!("Failed to connect to {}: {}", addr, e)))?;
+        let stream = tokio::time::timeout(config.connect_timeout, TcpStream::connect(&addr))
+            .await
+            .map_err(|_| Error::Timeout(format!("Connection to {} timed out", addr)))?
+            .map_err(|e| {
+                Error::ConnectionFailed(format!("Failed to connect to {}: {}", addr, e))
+            })?;
 
         log::info!("TCP connection established");
 
@@ -97,7 +96,11 @@ impl Connection {
     }
 
     /// Execute a parameterized query
-    pub async fn execute(&mut self, _sql: &str, _params: Vec<crate::types::Parameter>) -> Result<QueryResult> {
+    pub async fn execute(
+        &mut self,
+        _sql: &str,
+        _params: Vec<crate::types::Parameter>,
+    ) -> Result<QueryResult> {
         if !self.is_connected {
             return Err(Error::ConnectionFailed("Not connected".to_string()));
         }

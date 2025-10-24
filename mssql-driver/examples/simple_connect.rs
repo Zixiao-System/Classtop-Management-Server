@@ -18,7 +18,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .trust_server_certificate(true)
         .build()?;
 
-    println!("📡 Connecting to {}:{}/{}", config.host, config.port, config.database);
+    println!(
+        "📡 Connecting to {}:{}/{}",
+        config.host, config.port, config.database
+    );
 
     match Connection::connect(config).await {
         Ok(conn) => {

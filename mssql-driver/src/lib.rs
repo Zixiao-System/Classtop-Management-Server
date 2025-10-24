@@ -37,10 +37,10 @@
 //! ```
 
 pub mod connection;
-pub mod protocol;
-pub mod types;
 pub mod error;
+pub mod protocol;
 pub mod transaction;
+pub mod types;
 mod utils;
 
 // Re-exports for convenience

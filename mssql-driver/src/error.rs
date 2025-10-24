@@ -22,7 +22,12 @@ pub enum Error {
     Tls(String),
 
     #[error("SQL Server error (code {code}): {message}")]
-    ServerError { code: i32, message: String, line: i32, state: i8 },
+    ServerError {
+        code: i32,
+        message: String,
+        line: i32,
+        state: i8,
+    },
 
     #[error("Query execution failed: {0}")]
     QueryFailed(String),
@@ -69,7 +74,12 @@ impl Error {
 // Helper for creating server errors
 impl Error {
     pub fn server_error(code: i32, message: String, line: i32, state: i8) -> Self {
-        Error::ServerError { code, message, line, state }
+        Error::ServerError {
+            code,
+            message,
+            line,
+            state,
+        }
     }
 }
 
