@@ -3,6 +3,11 @@
 pub mod packets;
 pub mod tokens;
 
+// Re-export commonly used types
+pub use packets::{
+    EncryptionLevel, PacketHeader, PacketType, PreLoginPacket, PreLoginResponse,
+};
+
 use crate::types::Value;
 
 /// Query result
