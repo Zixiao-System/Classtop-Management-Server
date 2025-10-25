@@ -1,10 +1,11 @@
 version: '3.8'
 
 services:
-  # SQL Server 2022 (支持 Apple Silicon 和 Intel Mac)
+  # Azure SQL Edge (Apple Silicon 原生支持)
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/azure-sql-edge:latest
     container_name: classtop-mssql-dev
+    platform: linux/arm64
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "ClassTop@2024Dev!"
@@ -12,13 +13,6 @@ services:
       MSSQL_TCP_PORT: 1433
     ports:
       - "1433:1433"
-    volumes:
-      # 数据持久化
-      - mssql_data:/var/opt/mssql/data
-      # 日志持久化
-      - mssql_log:/var/opt/mssql/log
-      # 初始化脚本
-      - ./docker/mssql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - classtop_network
     healthcheck:
@@ -38,12 +32,6 @@ services:
   #     - classtop_network
   #   depends_on:
   #     - sqlserver
-
-volumes:
-  mssql_data:
-    driver: local
-  mssql_log:
-    driver: local
 
 networks:
   classtop_network:

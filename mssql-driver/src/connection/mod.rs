@@ -7,7 +7,10 @@ pub use config::{ConnectionConfig, ConnectionConfigBuilder};
 pub use pool::ConnectionPool;
 
 use crate::error::{Error, Result};
-use crate::protocol::{EncryptionLevel, PacketHeader, PacketType, PreLoginPacket, QueryResult};
+use crate::protocol::{
+    EncryptionLevel, Login7Packet, PacketHeader, PacketType, PreLoginPacket, QueryResult, Token,
+    TokenParser,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -120,16 +123,141 @@ impl Connection {
             ));
         }
 
-        // TODO: Step 5: Send Login7 packet with credentials
-        // TODO: Step 6: Receive login response
+        // Step 5: Send Login7 packet with credentials
+        log::debug!("Sending Login7 packet");
 
-        log::info!("Connection established (Pre-Login complete, Login7 TODO)");
+        let login7 = Login7Packet::new(
+            config.username.clone(),
+            config.password.clone(),
+            config.database.clone(),
+        );
+
+        let login7_data = login7.to_bytes()?;
+
+        let login7_header = PacketHeader {
+            packet_type: PacketType::Tds7Login,
+            status: 0x01, // EOM
+            length: (PacketHeader::SIZE + login7_data.len()) as u16,
+            spid: 0,
+            packet_id: 1,
+            window: 0,
+        };
+
+        stream.write_all(&login7_header.to_bytes()).await?;
+        stream.write_all(&login7_data).await?;
+        stream.flush().await?;
+
+        log::debug!("Login7 packet sent ({} bytes)", login7_header.length);
+
+        // Step 6: Receive and parse login response (Token Stream)
+        log::debug!("Waiting for Login response");
+
+        let mut login_ack_received = false;
+        let mut database_name = String::new();
+
+        // Read response packets until we get a Done token
+        loop {
+            // Read packet header
+            let mut header_buf = [0u8; 8];
+            stream.read_exact(&mut header_buf).await?;
+
+            let response_hdr = PacketHeader::from_bytes(&header_buf).ok_or_else(|| {
+                Error::ProtocolError("Invalid Login response header".to_string())
+            })?;
+
+            log::debug!("Received response packet: {:?}", response_hdr);
+
+            // Read packet data
+            let data_len = (response_hdr.length as usize)
+                .checked_sub(PacketHeader::SIZE)
+                .ok_or_else(|| Error::ProtocolError("Invalid packet length".to_string()))?;
+
+            let mut packet_data = vec![0u8; data_len];
+            stream.read_exact(&mut packet_data).await?;
+
+            // Parse tokens
+            let mut parser = TokenParser::new(&packet_data);
+
+            while parser.has_more() {
+                match parser.parse_next()? {
+                    Token::LoginAck(ack) => {
+                        log::info!(
+                            "Login successful! Server: {}, TDS version: 0x{:08X}",
+                            ack.prog_name,
+                            ack.tds_version
+                        );
+                        login_ack_received = true;
+                    }
+                    Token::EnvChange(env) => {
+                        log::info!(
+                            "Environment change: {} -> {}",
+                            env.old_value,
+                            env.new_value
+                        );
+                        if env.change_type == 1 {
+                            // Database change
+                            database_name = env.new_value.clone();
+                        }
+                    }
+                    Token::Done(done) => {
+                        log::debug!("Done token received (status: 0x{:04X})", done.status);
+                        // Check for errors in Done status
+                        if done.status & 0x02 != 0 {
+                            // Error flag set
+                            return Err(Error::AuthenticationFailed(
+                                "Login failed (Done status indicates error)".to_string(),
+                            ));
+                        }
+                    }
+                    Token::Error(err) => {
+                        log::error!(
+                            "SQL Server error {}: {}",
+                            err.code,
+                            err.message
+                        );
+                        return Err(Error::server_error(
+                            err.code,
+                            err.message,
+                            err.line_number,
+                            err.state as i8,
+                        ));
+                    }
+                    Token::Info(info) => {
+                        log::info!("SQL Server info: {}", info.message);
+                    }
+                    Token::Unknown(token_type) => {
+                        log::warn!("Unknown token type: 0x{:02X}", token_type);
+                    }
+                    _ => {}
+                }
+            }
+
+            // Check if this is the last packet (EOM bit set)
+            if response_hdr.status & 0x01 != 0 {
+                break;
+            }
+        }
+
+        if !login_ack_received {
+            return Err(Error::AuthenticationFailed(
+                "No LoginAck token received".to_string(),
+            ));
+        }
+
+        log::info!(
+            "Authentication complete. Database: {}",
+            if database_name.is_empty() {
+                &config.database
+            } else {
+                &database_name
+            }
+        );
 
         Ok(Self {
             stream,
             config,
             is_connected: true,
-            packet_id: 1,
+            packet_id: 2,
         })
     }
 

@@ -492,7 +492,7 @@ impl Login7Packet {
     }
 
     /// Encode password with SQL Server obfuscation
-    /// Each byte is XORed with 0xA5 and then bits are swapped
+    /// Each byte is XORed with 0x5A and then nibbles are swapped
     fn encode_password(&self, password: &str) -> Vec<u8> {
         use crate::utils::encoding::encode_ucs2_le;
 
@@ -500,7 +500,7 @@ impl Login7Packet {
         password_bytes
             .iter()
             .map(|&b| {
-                let xored = b ^ 0xA5;
+                let xored = b ^ 0x5A;
                 // Swap high and low nibbles
                 ((xored & 0x0F) << 4) | ((xored & 0xF0) >> 4)
             })

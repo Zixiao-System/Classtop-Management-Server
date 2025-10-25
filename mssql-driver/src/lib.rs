@@ -18,14 +18,14 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = ConnectionConfig {
-//!         host: "localhost".to_string(),
-//!         port: 1433,
-//!         username: "sa".to_string(),
-//!         password: "YourPassword".to_string(),
-//!         database: "master".to_string(),
-//!         encrypt: true,
-//!     };
+//!     let config = ConnectionConfig::builder()
+//!         .host("localhost")
+//!         .port(1433)
+//!         .username("sa")
+//!         .password("YourPassword")
+//!         .database("master")
+//!         .encrypt(true)
+//!         .build()?;
 //!
 //!     let mut conn = Connection::connect(config).await?;
 //!
