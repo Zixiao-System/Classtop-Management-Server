@@ -297,6 +297,217 @@ impl PreLoginResponse {
     }
 }
 
+// ===================================================================
+// Login7 Packet
+// ===================================================================
+
+/// Login7 packet for authentication
+#[derive(Debug, Clone)]
+pub struct Login7Packet {
+    pub hostname: String,
+    pub username: String,
+    pub password: String,
+    pub app_name: String,
+    pub server_name: String,
+    pub client_interface_name: String,
+    pub language: String,
+    pub database: String,
+    pub client_id: [u8; 6],
+}
+
+impl Login7Packet {
+    /// Create a new Login7 packet
+    pub fn new(username: String, password: String, database: String) -> Self {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // Generate client ID (first 6 bytes of process ID + timestamp)
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
+
+        let pid = std::process::id();
+        let client_id = [
+            (pid & 0xFF) as u8,
+            ((pid >> 8) & 0xFF) as u8,
+            (timestamp & 0xFF) as u8,
+            ((timestamp >> 8) & 0xFF) as u8,
+            ((timestamp >> 16) & 0xFF) as u8,
+            ((timestamp >> 24) & 0xFF) as u8,
+        ];
+
+        Self {
+            hostname: std::env::var("HOSTNAME")
+                .ok()
+                .unwrap_or_else(|| "unknown".to_string()),
+            username,
+            password,
+            app_name: "mssql-driver".to_string(),
+            server_name: String::new(),
+            client_interface_name: "mssql-driver".to_string(),
+            language: String::new(), // Use server default
+            database,
+            client_id,
+        }
+    }
+
+    /// Encode Login7 packet to bytes
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        use crate::utils::encoding::encode_ucs2_le;
+
+        let mut data = Vec::new();
+
+        // Fixed header (94 bytes before variable data)
+        let mut header = vec![0u8; 94];
+
+        // Length (to be filled later)
+        // header[0..4] = length (u32 LE)
+
+        // TDS version (0x74000004 = TDS 7.4)
+        header[4..8].copy_from_slice(&0x74000004u32.to_le_bytes());
+
+        // Packet size (4096 bytes)
+        header[8..12].copy_from_slice(&4096u32.to_le_bytes());
+
+        // Client program version (1.0.0.0)
+        header[12..16].copy_from_slice(&0x01000000u32.to_le_bytes());
+
+        // Client PID
+        header[16..20].copy_from_slice(&std::process::id().to_le_bytes());
+
+        // Connection ID (0)
+        header[20..24].copy_from_slice(&0u32.to_le_bytes());
+
+        // Option flags 1
+        // fByteOrder(1) | fChar(1) | fFloat(0) | fDumpLoad(1) | fUseDb(1) | fDatabase(0) | fSetLang(0)
+        header[24] = 0b11110000;
+
+        // Option flags 2
+        // fLanguage(0) | fODBC(1) | fTranBoundary(0) | fCacheConnect(0) | fUserType(0) | fIntSecurity(0)
+        header[25] = 0b00000011;
+
+        // Type flags
+        header[26] = 0;
+
+        // Option flags 3
+        header[27] = 0;
+
+        // Client timezone (0)
+        header[28..32].copy_from_slice(&0i32.to_le_bytes());
+
+        // Client LCID (0x00000409 = en-US)
+        header[32..36].copy_from_slice(&0x00000409u32.to_le_bytes());
+
+        // Now encode variable-length data
+        let mut var_data = Vec::new();
+        let mut offset = 94u16; // Start after fixed header
+
+        // HostName (offset 36, length 38)
+        let hostname_encoded = encode_ucs2_le(&self.hostname);
+        header[36..38].copy_from_slice(&offset.to_le_bytes());
+        header[38..40].copy_from_slice(&(self.hostname.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&hostname_encoded);
+        offset += hostname_encoded.len() as u16;
+
+        // UserName (offset 40, length 42)
+        let username_encoded = encode_ucs2_le(&self.username);
+        header[40..42].copy_from_slice(&offset.to_le_bytes());
+        header[42..44].copy_from_slice(&(self.username.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&username_encoded);
+        offset += username_encoded.len() as u16;
+
+        // Password (offset 44, length 46) - needs to be obfuscated
+        let password_encoded = self.encode_password(&self.password);
+        header[44..46].copy_from_slice(&offset.to_le_bytes());
+        header[46..48].copy_from_slice(&(self.password.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&password_encoded);
+        offset += password_encoded.len() as u16;
+
+        // AppName (offset 48, length 50)
+        let appname_encoded = encode_ucs2_le(&self.app_name);
+        header[48..50].copy_from_slice(&offset.to_le_bytes());
+        header[50..52].copy_from_slice(&(self.app_name.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&appname_encoded);
+        offset += appname_encoded.len() as u16;
+
+        // ServerName (offset 52, length 54)
+        let servername_encoded = encode_ucs2_le(&self.server_name);
+        header[52..54].copy_from_slice(&offset.to_le_bytes());
+        header[54..56].copy_from_slice(&(self.server_name.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&servername_encoded);
+        offset += servername_encoded.len() as u16;
+
+        // Extension (offset 56, length 58) - unused
+        header[56..58].copy_from_slice(&offset.to_le_bytes());
+        header[58..60].copy_from_slice(&0u16.to_le_bytes());
+
+        // InterfaceName (offset 60, length 62)
+        let interface_encoded = encode_ucs2_le(&self.client_interface_name);
+        header[60..62].copy_from_slice(&offset.to_le_bytes());
+        header[62..64].copy_from_slice(&(self.client_interface_name.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&interface_encoded);
+        offset += interface_encoded.len() as u16;
+
+        // Language (offset 64, length 66)
+        let language_encoded = encode_ucs2_le(&self.language);
+        header[64..66].copy_from_slice(&offset.to_le_bytes());
+        header[66..68].copy_from_slice(&(self.language.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&language_encoded);
+        offset += language_encoded.len() as u16;
+
+        // Database (offset 68, length 70)
+        let database_encoded = encode_ucs2_le(&self.database);
+        header[68..70].copy_from_slice(&offset.to_le_bytes());
+        header[70..72].copy_from_slice(&(self.database.len() as u16).to_le_bytes());
+        var_data.extend_from_slice(&database_encoded);
+        offset += database_encoded.len() as u16;
+
+        // Client ID (6 bytes at offset 72)
+        header[72..78].copy_from_slice(&self.client_id);
+
+        // SSPI (offset 78, length 80) - unused
+        header[78..80].copy_from_slice(&offset.to_le_bytes());
+        header[80..82].copy_from_slice(&0u16.to_le_bytes());
+
+        // AtchDBFile (offset 82, length 84) - unused
+        header[82..84].copy_from_slice(&offset.to_le_bytes());
+        header[84..86].copy_from_slice(&0u16.to_le_bytes());
+
+        // ChangePassword (offset 86, length 88) - unused
+        header[86..88].copy_from_slice(&offset.to_le_bytes());
+        header[88..90].copy_from_slice(&0u16.to_le_bytes());
+
+        // SSPI Long (4 bytes at offset 90)
+        header[90..94].copy_from_slice(&0u32.to_le_bytes());
+
+        // Combine header and variable data
+        data.extend_from_slice(&header);
+        data.extend_from_slice(&var_data);
+
+        // Update total length in header
+        let total_len = data.len() as u32;
+        data[0..4].copy_from_slice(&total_len.to_le_bytes());
+
+        Ok(data)
+    }
+
+    /// Encode password with SQL Server obfuscation
+    /// Each byte is XORed with 0xA5 and then bits are swapped
+    fn encode_password(&self, password: &str) -> Vec<u8> {
+        use crate::utils::encoding::encode_ucs2_le;
+
+        let password_bytes = encode_ucs2_le(password);
+        password_bytes
+            .iter()
+            .map(|&b| {
+                let xored = b ^ 0xA5;
+                // Swap high and low nibbles
+                ((xored & 0x0F) << 4) | ((xored & 0xF0) >> 4)
+            })
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,5 +563,55 @@ mod tests {
             .with_encryption(EncryptionLevel::EncryptReq);
 
         assert_eq!(packet.encryption, EncryptionLevel::EncryptReq);
+    }
+
+    #[test]
+    fn test_login7_packet_creation() {
+        let packet = Login7Packet::new(
+            "sa".to_string(),
+            "Password123".to_string(),
+            "master".to_string(),
+        );
+
+        assert_eq!(packet.username, "sa");
+        assert_eq!(packet.database, "master");
+        assert_eq!(packet.app_name, "mssql-driver");
+        assert_eq!(packet.client_id.len(), 6);
+    }
+
+    #[test]
+    fn test_login7_packet_encode() {
+        let packet = Login7Packet::new(
+            "testuser".to_string(),
+            "testpass".to_string(),
+            "testdb".to_string(),
+        );
+
+        let bytes = packet.to_bytes().unwrap();
+
+        // Check minimum length (94 bytes header + variable data)
+        assert!(bytes.len() >= 94);
+
+        // Check TDS version
+        let tds_version = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+        assert_eq!(tds_version, 0x74000004); // TDS 7.4
+    }
+
+    #[test]
+    fn test_password_obfuscation() {
+        let packet = Login7Packet::new(
+            "user".to_string(),
+            "pass".to_string(),
+            "db".to_string(),
+        );
+
+        let encoded = packet.encode_password("test");
+
+        // Password should be obfuscated (not plain text)
+        let plain = crate::utils::encoding::encode_ucs2_le("test");
+        assert_ne!(encoded, plain);
+
+        // Should have same length
+        assert_eq!(encoded.len(), plain.len());
     }
 }
