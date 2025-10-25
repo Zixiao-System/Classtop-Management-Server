@@ -4,28 +4,30 @@ use std::env;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseType {
     PostgreSQL,
-    MSSQL,
+    Mssql,
 }
 
 impl DatabaseType {
     pub fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "postgresql" | "postgres" => Ok(DatabaseType::PostgreSQL),
-            "mssql" | "sqlserver" => Ok(DatabaseType::MSSQL),
+            "mssql" | "sqlserver" => Ok(DatabaseType::Mssql),
             _ => Err(anyhow::anyhow!("Unsupported database type: {}", s)),
         }
     }
 
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             DatabaseType::PostgreSQL => "PostgreSQL",
-            DatabaseType::MSSQL => "SQL Server",
+            DatabaseType::Mssql => "SQL Server",
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    #[allow(dead_code)]
     pub database_type: DatabaseType,
     pub database_url: String,
     pub host: String,
@@ -43,7 +45,7 @@ impl Config {
         {
             DatabaseType::PostgreSQL
         } else if database_url.starts_with("mssql://") || database_url.starts_with("sqlserver://") {
-            DatabaseType::MSSQL
+            DatabaseType::Mssql
         } else {
             // Fallback: check DATABASE_TYPE env var
             DatabaseType::from_str(
