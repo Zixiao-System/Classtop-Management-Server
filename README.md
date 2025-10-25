@@ -70,7 +70,7 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 
 1. **克隆项目**
 ```bash
-git clone https://github.com/YOUR_USERNAME/Classtop-Management-Server.git
+git clone https://github.com/ZiXiao-System/Classtop-Management-Server.git
 cd Classtop-Management-Server
 ```
 
