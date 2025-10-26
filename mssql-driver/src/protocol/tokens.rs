@@ -61,10 +61,115 @@ pub enum Token {
     Unknown(u8),
 }
 
+/// TDS data type
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum TdsDataType {
+    // Null
+    Null = 0x1F,
+
+    // Integer types
+    TinyInt = 0x30,
+    Bit = 0x32,
+    SmallInt = 0x34,
+    Int = 0x38,
+    BigInt = 0x7F,
+
+    // Decimal types
+    Decimal = 0x37,
+    Numeric = 0x3F,
+    Float = 0x3E,
+    Real = 0x3B,
+    Money = 0x3C,
+    SmallMoney = 0x7A,
+
+    // String types
+    Char = 0x2F,
+    VarChar = 0x27,
+    Text = 0x23,
+    NChar = 0xEF,
+    NVarChar = 0xE7,
+    NText = 0x63,
+
+    // Binary types
+    Binary = 0x2D,
+    VarBinary = 0x25,
+    Image = 0x22,
+
+    // Date/Time types
+    DateTime = 0x3D,
+    SmallDateTime = 0x3A,
+    Date = 0x28,
+    Time = 0x29,
+    DateTime2 = 0x2A,
+    DateTimeOffset = 0x2B,
+
+    // Other types
+    UniqueIdentifier = 0x24,
+    Variant = 0x62,
+    Xml = 0xF1,
+}
+
+impl TdsDataType {
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0x1F => Some(TdsDataType::Null),
+            0x30 => Some(TdsDataType::TinyInt),
+            0x32 => Some(TdsDataType::Bit),
+            0x34 => Some(TdsDataType::SmallInt),
+            0x38 => Some(TdsDataType::Int),
+            0x7F => Some(TdsDataType::BigInt),
+            0x37 => Some(TdsDataType::Decimal),
+            0x3F => Some(TdsDataType::Numeric),
+            0x3E => Some(TdsDataType::Float),
+            0x3B => Some(TdsDataType::Real),
+            0x3C => Some(TdsDataType::Money),
+            0x7A => Some(TdsDataType::SmallMoney),
+            0x2F => Some(TdsDataType::Char),
+            0x27 => Some(TdsDataType::VarChar),
+            0x23 => Some(TdsDataType::Text),
+            0xEF => Some(TdsDataType::NChar),
+            0xE7 => Some(TdsDataType::NVarChar),
+            0x63 => Some(TdsDataType::NText),
+            0x2D => Some(TdsDataType::Binary),
+            0x25 => Some(TdsDataType::VarBinary),
+            0x22 => Some(TdsDataType::Image),
+            0x3D => Some(TdsDataType::DateTime),
+            0x3A => Some(TdsDataType::SmallDateTime),
+            0x28 => Some(TdsDataType::Date),
+            0x29 => Some(TdsDataType::Time),
+            0x2A => Some(TdsDataType::DateTime2),
+            0x2B => Some(TdsDataType::DateTimeOffset),
+            0x24 => Some(TdsDataType::UniqueIdentifier),
+            0x62 => Some(TdsDataType::Variant),
+            0xF1 => Some(TdsDataType::Xml),
+            _ => None,
+        }
+    }
+}
+
+/// Column metadata
+#[derive(Debug, Clone)]
+pub struct ColumnData {
+    pub user_type: u32,
+    pub flags: u16,
+    pub data_type: TdsDataType,
+    pub type_info: TypeInfo,
+    pub name: String,
+}
+
+/// Type-specific information
+#[derive(Debug, Clone)]
+pub enum TypeInfo {
+    FixedLen,
+    VarLen { max_length: usize },
+    Decimal { precision: u8, scale: u8 },
+    DateTime { scale: u8 },
+}
+
 #[derive(Debug, Clone)]
 pub struct ColMetaDataToken {
-    pub column_count: u16,
-    // TODO: Add column metadata fields
+    pub columns: Vec<ColumnData>,
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +261,8 @@ impl<'a> TokenParser<'a> {
         let token_type = self.read_u8()?;
 
         match TokenType::from_u8(token_type) {
+            Some(TokenType::ColMetaData) => self.parse_colmetadata(),
+            Some(TokenType::Row) => self.parse_row(),
             Some(TokenType::LoginAck) => self.parse_loginack(),
             Some(TokenType::EnvChange) => self.parse_envchange(),
             Some(TokenType::Done) | Some(TokenType::DoneProc) | Some(TokenType::DoneInProc) => {
@@ -292,6 +399,107 @@ impl<'a> TokenParser<'a> {
             severity,
             message,
         }))
+    }
+
+    fn parse_colmetadata(&mut self) -> Result<Token> {
+        let column_count = self.read_u16_le()?;
+
+        // 0xFFFF means no metadata (for example, in UPDATE/INSERT statements)
+        if column_count == 0xFFFF {
+            return Ok(Token::ColMetaData(ColMetaDataToken {
+                columns: Vec::new(),
+            }));
+        }
+
+        let mut columns = Vec::new();
+
+        for _ in 0..column_count {
+            // User type (4 bytes)
+            let user_type_bytes = self.read_bytes(4)?;
+            let user_type = u32::from_le_bytes([
+                user_type_bytes[0],
+                user_type_bytes[1],
+                user_type_bytes[2],
+                user_type_bytes[3],
+            ]);
+
+            // Flags (2 bytes)
+            let flags = self.read_u16_le()?;
+
+            // Data type (1 byte)
+            let data_type_byte = self.read_u8()?;
+            let data_type = TdsDataType::from_u8(data_type_byte)
+                .unwrap_or(TdsDataType::Null);
+
+            // Type info (depends on data type)
+            let type_info = self.parse_type_info(data_type)?;
+
+            // Column name (B_VARCHAR)
+            let name = self.read_b_varchar()?;
+
+            columns.push(ColumnData {
+                user_type,
+                flags,
+                data_type,
+                type_info,
+                name,
+            });
+        }
+
+        Ok(Token::ColMetaData(ColMetaDataToken { columns }))
+    }
+
+    fn parse_type_info(&mut self, data_type: TdsDataType) -> Result<TypeInfo> {
+        match data_type {
+            // Fixed-length types
+            TdsDataType::Bit
+            | TdsDataType::TinyInt
+            | TdsDataType::SmallInt
+            | TdsDataType::Int
+            | TdsDataType::BigInt
+            | TdsDataType::Float
+            | TdsDataType::Real
+            | TdsDataType::Money
+            | TdsDataType::SmallMoney
+            | TdsDataType::DateTime
+            | TdsDataType::SmallDateTime
+            | TdsDataType::UniqueIdentifier => Ok(TypeInfo::FixedLen),
+
+            // Variable-length types
+            TdsDataType::VarChar | TdsDataType::NVarChar | TdsDataType::VarBinary => {
+                let max_len = self.read_u16_le()? as usize;
+                Ok(TypeInfo::VarLen {
+                    max_length: max_len,
+                })
+            }
+
+            // Decimal/Numeric types
+            TdsDataType::Decimal | TdsDataType::Numeric => {
+                let _len = self.read_u8()?; // Length (always 17)
+                let precision = self.read_u8()?;
+                let scale = self.read_u8()?;
+                Ok(TypeInfo::Decimal { precision, scale })
+            }
+
+            // Date/Time types with scale
+            TdsDataType::Time | TdsDataType::DateTime2 | TdsDataType::DateTimeOffset => {
+                let scale = self.read_u8()?;
+                Ok(TypeInfo::DateTime { scale })
+            }
+
+            TdsDataType::Date => Ok(TypeInfo::FixedLen),
+
+            // Other types - just consume the length byte if present
+            _ => Ok(TypeInfo::FixedLen),
+        }
+    }
+
+    fn parse_row(&mut self) -> Result<Token> {
+        // For now, just skip row data and return raw bytes
+        // Full implementation would parse based on ColMetaData
+        let remaining = &self.data[self.pos..];
+        self.pos = self.data.len();
+        Ok(Token::Row(remaining.to_vec()))
     }
 
     // Helper methods for reading data

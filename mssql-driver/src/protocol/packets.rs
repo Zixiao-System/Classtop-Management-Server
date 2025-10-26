@@ -508,6 +508,51 @@ impl Login7Packet {
     }
 }
 
+/// SQL Batch packet - executes a SQL query
+#[derive(Debug, Clone)]
+pub struct SqlBatchPacket {
+    /// SQL query text
+    pub sql: String,
+    /// Transaction descriptor (0 for non-transactional)
+    pub transaction_descriptor: u64,
+}
+
+impl SqlBatchPacket {
+    /// Create a new SQL Batch packet
+    pub fn new(sql: impl Into<String>) -> Self {
+        Self {
+            sql: sql.into(),
+            transaction_descriptor: 0,
+        }
+    }
+
+    /// Encode the SQL Batch packet to bytes
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        use crate::utils::encoding::encode_ucs2_le;
+
+        let mut data = Vec::new();
+
+        // ALL_HEADERS (for transaction descriptor)
+        // Total length (4 bytes) - length of all headers
+        let headers_length: u32 = 22; // 4 (length) + 18 (transaction header)
+        data.extend_from_slice(&headers_length.to_le_bytes());
+
+        // Transaction descriptor header
+        // Header type (2 bytes) - 0x0002 for transaction descriptor
+        data.extend_from_slice(&2u16.to_le_bytes());
+        // Transaction descriptor (8 bytes)
+        data.extend_from_slice(&self.transaction_descriptor.to_le_bytes());
+        // Outstanding request count (4 bytes) - always 1
+        data.extend_from_slice(&1u32.to_le_bytes());
+
+        // SQL text (UCS-2 LE encoded)
+        let sql_bytes = encode_ucs2_le(&self.sql);
+        data.extend_from_slice(&sql_bytes);
+
+        Ok(data)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

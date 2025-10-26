@@ -8,8 +8,8 @@ pub use pool::ConnectionPool;
 
 use crate::error::{Error, Result};
 use crate::protocol::{
-    EncryptionLevel, Login7Packet, PacketHeader, PacketType, PreLoginPacket, QueryResult, Token,
-    TokenParser,
+    ColMetaDataToken, EncryptionLevel, Login7Packet, PacketHeader, PacketType, PreLoginPacket,
+    QueryResult, SqlBatchPacket, Token, TokenParser,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -273,19 +273,116 @@ impl Connection {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn query(&mut self, _sql: &str) -> Result<QueryResult> {
+    pub async fn query(&mut self, sql: &str) -> Result<QueryResult> {
         if !self.is_connected {
             return Err(Error::ConnectionFailed("Not connected".to_string()));
         }
 
-        // TODO: Implement query execution
-        // Step 1: Build SQL_BATCH packet
-        // Step 2: Send packet to server
-        // Step 3: Receive token stream
-        // Step 4: Parse result set
+        log::debug!("Executing query: {}", sql);
 
-        log::warn!("query() not yet implemented");
-        Err(Error::QueryFailed("Not implemented yet".to_string()))
+        // Step 1: Build SQL_BATCH packet
+        let batch_packet = SqlBatchPacket::new(sql);
+        let batch_data = batch_packet.to_bytes()?;
+
+        // Step 2: Send packet to server
+        let packet_len = (PacketHeader::SIZE + batch_data.len()) as u16;
+        let header = PacketHeader {
+            packet_type: PacketType::SqlBatch,
+            status: 0x01, // EOM (End of Message)
+            length: packet_len,
+            spid: 0,
+            packet_id: self.packet_id,
+            window: 0,
+        };
+
+        self.packet_id = self.packet_id.wrapping_add(1);
+
+        let header_bytes = header.to_bytes();
+        self.stream.write_all(&header_bytes).await?;
+        self.stream.write_all(&batch_data).await?;
+        self.stream.flush().await?;
+
+        log::debug!("SQL Batch packet sent ({} bytes)", packet_len);
+
+        // Step 3: Receive and parse token stream
+        let mut column_metadata: Option<ColMetaDataToken> = None;
+        let mut rows = Vec::new();
+        let mut rows_affected = 0i64;
+
+        loop {
+            // Read packet header
+            let mut header_buf = [0u8; PacketHeader::SIZE];
+            self.stream.read_exact(&mut header_buf).await?;
+
+            let response_hdr = PacketHeader::from_bytes(&header_buf)
+                .ok_or_else(|| Error::ProtocolError("Invalid packet header".to_string()))?;
+
+            log::debug!("Received response packet: {:?}", response_hdr);
+
+            // Read packet data
+            let data_len = response_hdr.length as usize - PacketHeader::SIZE;
+            let mut packet_data = vec![0u8; data_len];
+            self.stream.read_exact(&mut packet_data).await?;
+
+            // Parse tokens
+            let mut parser = TokenParser::new(&packet_data);
+
+            while parser.has_more() {
+                match parser.parse_next()? {
+                    Token::ColMetaData(meta) => {
+                        log::debug!("Received column metadata: {} columns", meta.columns.len());
+                        column_metadata = Some(meta);
+                    }
+                    Token::Row(row_data) => {
+                        log::debug!("Received row data: {} bytes", row_data.len());
+                        rows.push(row_data);
+                    }
+                    Token::Done(done) => {
+                        log::debug!("Done token: row_count={}", done.row_count);
+                        rows_affected = done.row_count;
+
+                        // Check for errors in done status
+                        if done.status & 0x02 != 0 {
+                            // Error bit set
+                            log::warn!("Done token indicates error");
+                        }
+                    }
+                    Token::Error(err) => {
+                        log::error!("SQL Server error {}: {}", err.code, err.message);
+                        return Err(Error::server_error(
+                            err.code,
+                            err.message,
+                            err.line_number,
+                            err.state as i8,
+                        ));
+                    }
+                    Token::Info(info) => {
+                        log::info!("SQL Server info: {}", info.message);
+                    }
+                    Token::EnvChange(env) => {
+                        log::debug!("Environment change: {} -> {}", env.old_value, env.new_value);
+                    }
+                    _ => {}
+                }
+            }
+
+            // Check if this is the last packet (EOM bit set)
+            if response_hdr.status & 0x01 != 0 {
+                break;
+            }
+        }
+
+        log::info!(
+            "Query executed successfully: {} rows, {} affected",
+            rows.len(),
+            rows_affected
+        );
+
+        Ok(QueryResult {
+            columns: column_metadata.map(|m| m.columns).unwrap_or_default(),
+            rows,
+            rows_affected: rows_affected as usize,
+        })
     }
 
     /// Execute a parameterized query
