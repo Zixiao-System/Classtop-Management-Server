@@ -10,7 +10,7 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 - 🔄 **数据同步** - 从客户端同步课程和课程表数据
 - 📊 **统计分析** - 查看所有客户端的统计信息
 - 🎨 **Web 管理界面** - 基于 Material Design 的现代化管理后台
-- 🗄️ **数据库支持** - PostgreSQL (SQL Server 支持规划中)
+- 🗄️ **数据库支持** - PostgreSQL (完全支持) / SQL Server (Developer Build 可用)
 
 ## ✨ 功能特性
 
@@ -61,10 +61,12 @@ ClassTop 客户端的集中管理服务器，用于管理多个 ClassTop 客户�
 
 - Rust 1.70+
 - Node.js 18+ (用于前端开发)
-- PostgreSQL 14+
+- PostgreSQL 14+ 或 SQL Server 2019+
 - 操作系统: Windows Server / Linux / macOS
 
-> 💡 **注意**: SQL Server 支持正在规划中。目前推荐使用 PostgreSQL，它在所有平台上都有良好支持。
+> 💡 **数据库选择**:
+> - **PostgreSQL** - 生产环境推荐，跨平台支持完善
+> - **SQL Server** - Developer Build 可用，适合 Windows Server 环境（使用自研驱动）
 
 ### 安装步骤
 
@@ -81,28 +83,78 @@ cd Classtop-Management-Server
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，配置 PostgreSQL 数据库：
+编辑 `.env` 文件，配置数据库：
 
+**PostgreSQL 配置:**
 ```env
+DATABASE_TYPE=postgresql
 DATABASE_URL=postgresql://username:password@localhost:5432/classtop
 HOST=0.0.0.0
 PORT=8765
 ```
 
-> 💡 **Windows Server 用户**: 虽然 SQL Server 支持正在开发中，但 PostgreSQL 在 Windows 上同样表现出色。可以使用 [官方 Windows 安装包](https://www.postgresql.org/download/windows/) 或 Docker。
+**SQL Server 配置:**
+```env
+DATABASE_TYPE=mssql
+MSSQL_HOST=localhost
+MSSQL_PORT=1433
+MSSQL_USERNAME=sa
+MSSQL_PASSWORD=YourPassword
+MSSQL_DATABASE=classtop
+HOST=0.0.0.0
+PORT=8765
+```
 
 <details>
-<summary><b>SQL Server 支持状态 (点击展开)</b></summary>
+<summary><b>SQL Server 支持状态 (Developer Build 可用)</b></summary>
 
-SQL Server 支持目前处于**规划阶段**。
+SQL Server 驱动目前处于 **Developer Build** 阶段，已实现核心功能：
 
-- ✅ 数据库迁移脚本已准备 (`migrations/002_initial_mssql.sql`)
-- ✅ 配置文档已完成 (`docs/MSSQL_SETUP.md`)
-- ⏳ 运行时驱动集成待实现（需要 Tiberius crate）
+**✅ 已实现功能:**
+- ✅ TDS 7.4 协议实现
+- ✅ Pre-Login 握手
+- ✅ Login7 认证（含密码混淆）
+- ✅ SQL Batch 查询执行
+- ✅ 列元数据解析
+- ✅ 行数据值解析
+- ✅ 事务支持 (BEGIN/COMMIT/ROLLBACK)
+- ✅ 常用数据类型支持（INT, VARCHAR, NVARCHAR, FLOAT 等）
+- ✅ 错误处理
 
-详见：[SQL Server 支持状态](docs/MSSQL_STATUS.md)
+**⏳ 待完善功能:**
+- ⏳ 参数化查询 (sp_executesql)
+- ⏳ 连接池
+- ⏳ DateTime/Decimal 类型支持
+- ⏳ 生产环境稳定性测试
 
-临时解决方案：在 Windows Server 上使用 PostgreSQL（完全支持）
+**项目位置**: `mssql-driver/` (独立子项目)
+
+**使用方式**:
+```rust
+use mssql_driver::{Connection, ConnectionConfig};
+
+let config = ConnectionConfig::builder()
+    .host("localhost")
+    .port(1433)
+    .username("sa")
+    .password("password")
+    .database("classtop")
+    .build()?;
+
+let mut conn = Connection::connect(config).await?;
+let result = conn.query("SELECT * FROM clients").await?;
+
+// 事务支持
+conn.begin_transaction().await?;
+conn.query("INSERT INTO ...").await?;
+conn.commit().await?;
+```
+
+**注意事项**:
+- 🔬 Developer Build 质量，建议在开发/测试环境使用
+- 🐛 如遇问题请提交 Issue
+- 📝 详见: [MSSQL Status](docs/MSSQL_STATUS.md)
+
 </details>
 
 3. **构建前端**
@@ -285,6 +337,16 @@ Classtop-Management-Server/
 │   ├── handlers.rs          # API 处理器
 │   ├── routes.rs            # 路由配置
 │   └── error.rs             # 错误处理
+├── mssql-driver/            # SQL Server 驱动（独立子项目）
+│   ├── src/
+│   │   ├── connection/      # 连接管理
+│   │   ├── protocol/        # TDS 协议实现
+│   │   ├── types.rs         # 类型系统
+│   │   └── error.rs         # 错误处理
+│   ├── examples/            # 示例代码
+│   │   ├── test_connection.rs
+│   │   └── test_query.rs
+│   └── Cargo.toml           # 驱动依赖配置
 ├── frontend/                # 前端源代码 (Vue 3)
 │   ├── src/
 │   │   ├── App.vue          # 主应用组件
@@ -305,7 +367,7 @@ Classtop-Management-Server/
 │   ├── ClassTop-Client-API.md         # ClassTop 客户端 API 文档
 │   ├── CLIENT_ADAPTATION.md           # 客户端适配指南
 │   ├── CLIENT_INTEGRATION_TODO.md     # 客户端集成任务清单
-│   ├── MSSQL_SETUP.md                 # SQL Server 配置指南（规划中）
+│   ├── MSSQL_SETUP.md                 # SQL Server 配置指南
 │   └── MSSQL_STATUS.md                # SQL Server 支持状态
 ├── Cargo.toml               # Rust 项目依赖
 ├── .env.example             # 环境变量示例
