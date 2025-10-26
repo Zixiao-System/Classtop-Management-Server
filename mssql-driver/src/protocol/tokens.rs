@@ -52,7 +52,7 @@ impl TokenType {
 #[derive(Debug, Clone)]
 pub enum Token {
     ColMetaData(ColMetaDataToken),
-    Row(Vec<u8>),
+    Row(Vec<crate::types::Value>),
     Done(DoneToken),
     Error(ErrorToken),
     Info(InfoToken),
@@ -242,11 +242,24 @@ impl EnvChangeToken {
 pub struct TokenParser<'a> {
     data: &'a [u8],
     pos: usize,
+    column_metadata: Option<Vec<ColumnData>>,
 }
 
 impl<'a> TokenParser<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Self { data, pos: 0 }
+        Self {
+            data,
+            pos: 0,
+            column_metadata: None,
+        }
+    }
+
+    pub fn with_metadata(data: &'a [u8], metadata: Vec<ColumnData>) -> Self {
+        Self {
+            data,
+            pos: 0,
+            column_metadata: Some(metadata),
+        }
     }
 
     pub fn has_more(&self) -> bool {
@@ -495,11 +508,169 @@ impl<'a> TokenParser<'a> {
     }
 
     fn parse_row(&mut self) -> Result<Token> {
-        // For now, just skip row data and return raw bytes
-        // Full implementation would parse based on ColMetaData
-        let remaining = &self.data[self.pos..];
-        self.pos = self.data.len();
-        Ok(Token::Row(remaining.to_vec()))
+        use crate::types::Value;
+
+        // Clone columns to avoid borrow issues
+        let columns = self
+            .column_metadata
+            .as_ref()
+            .ok_or_else(|| {
+                Error::ProtocolError("No column metadata available for row parsing".to_string())
+            })?
+            .clone();
+
+        let mut values = Vec::new();
+
+        for column in &columns {
+            let value = match column.data_type {
+                // Null
+                TdsDataType::Null => Value::Null,
+
+                // Boolean
+                TdsDataType::Bit => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        let byte = self.read_u8()?;
+                        Value::Bit(byte != 0)
+                    }
+                }
+
+                // Integers
+                TdsDataType::TinyInt => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        Value::TinyInt(self.read_u8()?)
+                    }
+                }
+
+                TdsDataType::SmallInt => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        Value::SmallInt(self.read_i16_le()?)
+                    }
+                }
+
+                TdsDataType::Int => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        Value::Int(self.read_i32_le()?)
+                    }
+                }
+
+                TdsDataType::BigInt => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        Value::BigInt(self.read_i64_le()?)
+                    }
+                }
+
+                // Floats
+                TdsDataType::Real => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        let bytes = self.read_bytes(4)?;
+                        Value::Real(f32::from_le_bytes([
+                            bytes[0], bytes[1], bytes[2], bytes[3],
+                        ]))
+                    }
+                }
+
+                TdsDataType::Float => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        let bytes = self.read_bytes(8)?;
+                        Value::Float(f64::from_le_bytes([
+                            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6],
+                            bytes[7],
+                        ]))
+                    }
+                }
+
+                // Strings - variable length
+                TdsDataType::NVarChar | TdsDataType::NChar => {
+                    let len = self.read_u16_le()? as usize;
+                    if len == 0xFFFF {
+                        // Null
+                        Value::Null
+                    } else if len == 0 {
+                        Value::NVarChar(String::new())
+                    } else {
+                        let bytes = self.read_bytes(len)?;
+                        let text = decode_ucs2_le(bytes)?;
+                        Value::NVarChar(text)
+                    }
+                }
+
+                TdsDataType::VarChar | TdsDataType::Char => {
+                    let len = self.read_u16_le()? as usize;
+                    if len == 0xFFFF {
+                        Value::Null
+                    } else if len == 0 {
+                        Value::VarChar(String::new())
+                    } else {
+                        let bytes = self.read_bytes(len)?;
+                        // Assuming UTF-8 for VARCHAR (should use collation)
+                        Value::VarChar(String::from_utf8_lossy(bytes).to_string())
+                    }
+                }
+
+                // Binary
+                TdsDataType::VarBinary | TdsDataType::Binary => {
+                    let len = self.read_u16_le()? as usize;
+                    if len == 0xFFFF {
+                        Value::Null
+                    } else {
+                        let bytes = self.read_bytes(len)?;
+                        Value::VarBinary(bytes.to_vec())
+                    }
+                }
+
+                // UniqueIdentifier (GUID)
+                TdsDataType::UniqueIdentifier => {
+                    let len = self.read_u8()?;
+                    if len == 0 {
+                        Value::Null
+                    } else {
+                        let bytes = self.read_bytes(16)?;
+                        let uuid = uuid::Uuid::from_bytes_le([
+                            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6],
+                            bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12],
+                            bytes[13], bytes[14], bytes[15],
+                        ]);
+                        Value::UniqueIdentifier(uuid)
+                    }
+                }
+
+                // For unsupported types, skip and return Null
+                _ => {
+                    log::warn!("Unsupported data type in row: {:?}", column.data_type);
+                    // Try to skip the value (assuming 1-byte length prefix)
+                    let len = self.read_u8().unwrap_or(0) as usize;
+                    if len > 0 && len < 0xFF {
+                        let _ = self.read_bytes(len);
+                    }
+                    Value::Null
+                }
+            };
+
+            values.push(value);
+        }
+
+        Ok(Token::Row(values))
     }
 
     // Helper methods for reading data
@@ -517,6 +688,15 @@ impl<'a> TokenParser<'a> {
             return Err(Error::UnexpectedEof);
         }
         let value = u16::from_le_bytes([self.data[self.pos], self.data[self.pos + 1]]);
+        self.pos += 2;
+        Ok(value)
+    }
+
+    fn read_i16_le(&mut self) -> Result<i16> {
+        if self.pos + 2 > self.data.len() {
+            return Err(Error::UnexpectedEof);
+        }
+        let value = i16::from_le_bytes([self.data[self.pos], self.data[self.pos + 1]]);
         self.pos += 2;
         Ok(value)
     }

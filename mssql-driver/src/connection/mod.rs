@@ -324,8 +324,12 @@ impl Connection {
             let mut packet_data = vec![0u8; data_len];
             self.stream.read_exact(&mut packet_data).await?;
 
-            // Parse tokens
-            let mut parser = TokenParser::new(&packet_data);
+            // Parse tokens - use with_metadata if we have column info
+            let mut parser = if let Some(ref meta) = column_metadata {
+                TokenParser::with_metadata(&packet_data, meta.columns.clone())
+            } else {
+                TokenParser::new(&packet_data)
+            };
 
             while parser.has_more() {
                 match parser.parse_next()? {
@@ -333,9 +337,9 @@ impl Connection {
                         log::debug!("Received column metadata: {} columns", meta.columns.len());
                         column_metadata = Some(meta);
                     }
-                    Token::Row(row_data) => {
-                        log::debug!("Received row data: {} bytes", row_data.len());
-                        rows.push(row_data);
+                    Token::Row(row_values) => {
+                        log::debug!("Received row with {} values", row_values.len());
+                        rows.push(row_values);
                     }
                     Token::Done(done) => {
                         log::debug!("Done token: row_count={}", done.row_count);
@@ -398,6 +402,27 @@ impl Connection {
         // TODO: Implement parameterized query execution via sp_executesql
         log::warn!("execute() not yet implemented");
         Err(Error::QueryFailed("Not implemented yet".to_string()))
+    }
+
+    /// Begin a transaction
+    pub async fn begin_transaction(&mut self) -> Result<()> {
+        log::debug!("Beginning transaction");
+        self.query("BEGIN TRANSACTION").await?;
+        Ok(())
+    }
+
+    /// Commit the current transaction
+    pub async fn commit(&mut self) -> Result<()> {
+        log::debug!("Committing transaction");
+        self.query("COMMIT").await?;
+        Ok(())
+    }
+
+    /// Rollback the current transaction
+    pub async fn rollback(&mut self) -> Result<()> {
+        log::debug!("Rolling back transaction");
+        self.query("ROLLBACK").await?;
+        Ok(())
     }
 
     /// Check if connection is alive
