@@ -1,0 +1,37 @@
+# ClassTop Management Server - systemd 服务配置
+# 用于 Linux 系统的自动启动
+
+[Unit]
+Description=ClassTop Management Server
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=your-username
+Group=your-group
+WorkingDirectory=/path/to/Classtop-Management-Server
+Environment="RUST_LOG=info"
+EnvironmentFile=/path/to/Classtop-Management-Server/.env
+
+# 启动命令
+ExecStart=/usr/bin/cargo run --release
+
+# 重启策略
+Restart=always
+RestartSec=10
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=classtop-server
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/path/to/Classtop-Management-Server
+
+[Install]
+WantedBy=multi-user.target

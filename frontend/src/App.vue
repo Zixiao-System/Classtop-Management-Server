@@ -1,15 +1,28 @@
 <template>
-  <div>
+  <div v-if="!isAuthenticated">
+    <!-- 登录界面 -->
+    <LoginView @login-success="onLoginSuccess" />
+  </div>
+
+  <div v-else>
     <!-- Top App Bar -->
     <mdui-top-app-bar>
       <mdui-top-app-bar-title>ClassTop 集中管理服务器</mdui-top-app-bar-title>
       <div style="flex-grow: 1"></div>
+
+      <!-- 用户信息 -->
+      <div style="margin-right: 16px; display: flex; align-items: center; gap: 8px;">
+        <mdui-icon name="account_circle"></mdui-icon>
+        <span style="font-size: 0.875rem;">{{ currentUser?.username }}</span>
+      </div>
+
       <mdui-button-icon icon="refresh--outlined" @click="refreshData"></mdui-button-icon>
       <mdui-button-icon
         :icon="isDark ? 'light_mode--outlined' : 'dark_mode--outlined'"
         @click="toggleTheme"
       ></mdui-button-icon>
       <mdui-button-icon icon="settings--outlined" @click="openApiDocs"></mdui-button-icon>
+      <mdui-button-icon icon="logout" @click="handleLogout"></mdui-button-icon>
     </mdui-top-app-bar>
 
     <!-- Navigation Tabs -->
@@ -33,19 +46,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { setTheme, getTheme } from 'mdui'
+import { ref, onMounted, computed } from 'vue'
+import { setTheme, getTheme, snackbar, confirm } from 'mdui'
+import { auth } from './auth.js'
+import LoginView from './components/LoginView.vue'
 import DashboardView from './components/DashboardView.vue'
 import ClientsView from './components/ClientsView.vue'
 import DataView from './components/DataView.vue'
 
 const currentTab = ref('dashboard')
 const isDark = ref(false)
+const isAuthenticated = ref(false)
+const currentUser = computed(() => auth.getUser())
 
 onMounted(() => {
+  // 检查认证状态
+  isAuthenticated.value = auth.isAuthenticated()
+
+  // 设置主题
   const theme = getTheme()
   isDark.value = theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
 })
+
+const onLoginSuccess = () => {
+  isAuthenticated.value = true
+  snackbar({
+    message: `欢迎回来，${currentUser.value?.username}！`,
+    action: '确定'
+  })
+}
 
 const toggleTheme = () => {
   const currentTheme = getTheme()
@@ -64,6 +93,24 @@ const refreshData = () => {
 
 const openApiDocs = () => {
   window.open('/api/docs', '_blank')
+}
+
+const handleLogout = async () => {
+  const result = await confirm({
+    headline: '确认登出',
+    description: '确定要退出登录吗？',
+    confirmText: '确定',
+    cancelText: '取消'
+  })
+
+  if (result) {
+    auth.logout()
+    isAuthenticated.value = false
+    snackbar({
+      message: '已退出登录',
+      action: '确定'
+    })
+  }
 }
 </script>
 
