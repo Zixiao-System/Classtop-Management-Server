@@ -101,18 +101,20 @@ if [ "$USE_NGINX" = true ]; then
     fi
 
     if [ -d "$NGINX_CONF_DIR/sites-available" ]; then
+        # Linux: 使用 sites-available/enabled 模式
         SITES_CONF="$NGINX_CONF_DIR/sites-available/classtop.conf"
         SITES_ENABLED="$NGINX_CONF_DIR/sites-enabled/classtop.conf"
 
-        # 复制配置文件
-        sudo cp nginx.conf "$SITES_CONF"
+        # 复制 server 块配置
+        sudo cp nginx-site.conf "$SITES_CONF"
         sudo ln -sf "$SITES_CONF" "$SITES_ENABLED"
 
         echo -e "${GREEN}✓ Nginx 配置已安装到: $SITES_CONF${NC}"
     else
-        # macOS 直接配置
-        echo -e "${YELLOW}请手动将 nginx.conf 的内容添加到 Nginx 配置中${NC}"
-        echo -e "${YELLOW}配置文件位置: $NGINX_CONF_DIR/nginx.conf${NC}"
+        # macOS: 直接替换主配置文件
+        echo -e "${YELLOW}正在配置 Nginx...${NC}"
+        sudo cp nginx.conf "$NGINX_CONF_DIR/nginx.conf"
+        echo -e "${GREEN}✓ Nginx 配置已更新: $NGINX_CONF_DIR/nginx.conf${NC}"
     fi
 
     # 测试 Nginx 配置
