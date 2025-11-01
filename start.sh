@@ -47,13 +47,16 @@ if grep -q "your-secret-key-change-this-in-production" .env; then
     echo -e "${GREEN}✓ JWT 密钥已更新${NC}\n"
 fi
 
-# 检查数据库连接
-echo -e "${BLUE}[1/5] 检查数据库连接...${NC}"
-if ! cargo run --bin classtop-management-server -- --help >/dev/null 2>&1; then
-    echo -e "${RED}错误: 无法编译项目${NC}"
-    exit 1
+# 检查项目编译
+echo -e "${BLUE}[1/5] 检查项目编译...${NC}"
+if ! cargo check --quiet 2>/dev/null; then
+    echo -e "${YELLOW}警告: 项目检查失败，尝试构建...${NC}"
+    if ! cargo build --release; then
+        echo -e "${RED}错误: 项目编译失败${NC}"
+        exit 1
+    fi
 fi
-echo -e "${GREEN}✓ 项目编译成功${NC}\n"
+echo -e "${GREEN}✓ 项目检查通过${NC}\n"
 
 # 构建前端
 echo -e "${BLUE}[2/5] 构建前端...${NC}"
