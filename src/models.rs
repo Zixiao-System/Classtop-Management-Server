@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+use chrono::NaiveDateTime;
 
 // Response wrapper
 #[derive(Debug, Serialize, ToSchema)]
@@ -388,8 +389,10 @@ pub struct User {
     pub email: Option<String>,
     pub role: String, // admin, user
     pub is_active: bool,
-    pub created_at: String,
-    pub updated_at: String,
+    #[schema(value_type = String, example = "2024-01-01T00:00:00")]
+    pub created_at: NaiveDateTime,
+    #[schema(value_type = String, example = "2024-01-01T00:00:00")]
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
