@@ -3,12 +3,22 @@ name = "classtop-management-server"
 version = "1.0.0"
 edition = "2021"
 
+[lib]
+name = "classtop_management_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "classtop-management-server"
+path = "src/main.rs"
+
 [dependencies]
 actix-web = "4.9"
 actix-web-actors = "4.3"
+actix-web-httpauth = "0.8"
 actix = "0.13"
 actix-cors = "0.7"
 actix-files = "0.6"
+actix-governor = "0.6"
 tokio = { version = "1.41", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -20,11 +30,20 @@ utoipa-swagger-ui = { version = "8.1", features = ["actix-web"] }
 utoipa-redoc = { version = "5.0", features = ["actix-web"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
-env_logger = "0.11"
-log = "0.4"
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-actix-web = "0.7"
+# Authentication
+jsonwebtoken = "9.3"
+bcrypt = "0.16"
+# Error handling
 anyhow = "1.0"
 thiserror = "2.0"
 rand = "0.8"
+
+[dev-dependencies]
+actix-rt = "2.10"
 
 [profile.release]
 opt-level = 3

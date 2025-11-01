@@ -17,7 +17,7 @@ use tokio::net::TcpStream;
 /// SQL Server connection
 pub struct Connection {
     stream: TcpStream,
-    config: ConnectionConfig,
+    _config: ConnectionConfig,
     is_connected: bool,
     packet_id: u8,
 }
@@ -255,7 +255,7 @@ impl Connection {
 
         Ok(Self {
             stream,
-            config,
+            _config: config,
             is_connected: true,
             packet_id: 2,
         })

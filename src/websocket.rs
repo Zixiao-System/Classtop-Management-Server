@@ -3,7 +3,7 @@ use actix::{
 };
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use log::{error, info, warn};
+use tracing::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -74,6 +74,12 @@ impl WSConnectionManager {
 
     pub fn get_online_clients(&self) -> Vec<Uuid> {
         self.connections.lock().unwrap().keys().copied().collect()
+    }
+}
+
+impl Default for WSConnectionManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

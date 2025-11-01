@@ -249,7 +249,7 @@ pub struct LogsResponse {
 }
 
 // Root response
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RootResponse {
     pub message: String,
     pub version: String,
@@ -375,4 +375,113 @@ pub struct LogCCTVEventRequest {
     pub event_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
+}
+
+// User Authentication Models
+#[derive(Debug, Serialize, Deserialize, Clone, ToSchema)]
+pub struct User {
+    pub id: i32,
+    pub uuid: String,
+    pub username: String,
+    #[serde(skip_serializing)]
+    pub password_hash: String,
+    pub email: Option<String>,
+    pub role: String, // admin, user
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RegisterUser {
+    pub username: String,
+    pub password: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LoginResponse {
+    pub token: String,
+    pub user: UserInfo,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UserInfo {
+    pub id: i32,
+    pub uuid: String,
+    pub username: String,
+    pub email: Option<String>,
+    pub role: String,
+}
+
+impl From<User> for UserInfo {
+    fn from(user: User) -> Self {
+        Self {
+            id: user.id,
+            uuid: user.uuid,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+        }
+    }
+}
+
+// Pagination Models
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PaginationParams {
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
+}
+
+fn default_page() -> i64 {
+    1
+}
+
+fn default_page_size() -> i64 {
+    20
+}
+
+impl PaginationParams {
+    pub fn offset(&self) -> i64 {
+        (self.page - 1) * self.page_size
+    }
+
+    pub fn limit(&self) -> i64 {
+        self.page_size
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
+    pub pagination: PaginationInfo,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PaginationInfo {
+    pub page: i64,
+    pub page_size: i64,
+    pub total_items: i64,
+    pub total_pages: i64,
+}
+
+impl PaginationInfo {
+    pub fn new(page: i64, page_size: i64, total_items: i64) -> Self {
+        let total_pages = (total_items + page_size - 1) / page_size;
+        Self {
+            page,
+            page_size,
+            total_items,
+            total_pages,
+        }
+    }
 }

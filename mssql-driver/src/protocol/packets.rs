@@ -147,7 +147,6 @@ impl PreLoginPacket {
         let mut data = Vec::new();
 
         // Build option offsets
-        let mut offset: u16 = 0;
         let mut options_data = Vec::new();
 
         // Calculate base offset (after all option headers + terminator)
@@ -160,7 +159,7 @@ impl PreLoginPacket {
         if true { num_options += 1; } // THREADID (always present)
         if self.mars { num_options += 1; }
 
-        offset = (num_options * 5 + 1) as u16; // +1 for terminator
+        let mut offset = (num_options * 5 + 1) as u16; // +1 for terminator
 
         // VERSION option
         data.push(PreLoginOptionToken::Version as u8);

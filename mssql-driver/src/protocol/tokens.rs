@@ -365,7 +365,7 @@ impl<'a> TokenParser<'a> {
     }
 
     fn parse_error(&mut self) -> Result<Token> {
-        let length = self.read_u16_le()?;
+        let _length = self.read_u16_le()?;
         let _start_pos = self.pos;
 
         let code = self.read_i32_le()?;
@@ -396,7 +396,7 @@ impl<'a> TokenParser<'a> {
     }
 
     fn parse_info(&mut self) -> Result<Token> {
-        let length = self.read_u16_le()?;
+        let _length = self.read_u16_le()?;
         let _start_pos = self.pos;
 
         let code = self.read_i32_le()?;

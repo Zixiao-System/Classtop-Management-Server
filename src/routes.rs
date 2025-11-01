@@ -27,6 +27,10 @@ use utoipa::OpenApi;
         handlers::get_lms_clients,
         handlers::delete_lms,
         handlers::get_lms_statistics,
+        handlers::register,
+        handlers::login,
+        handlers::get_clients_paginated,
+        handlers::get_courses_paginated,
     ),
     components(
         schemas(
@@ -43,6 +47,10 @@ use utoipa::OpenApi;
             ApiResponse<LMSInstance>,
             ApiResponse<RegisterLMSResponse>,
             ApiResponse<LMSStatistics>,
+            ApiResponse<LoginResponse>,
+            ApiResponse<UserInfo>,
+            ApiResponse<PaginatedResponse<Client>>,
+            ApiResponse<PaginatedResponse<Course>>,
             HealthResponse,
             Client,
             RegisterClient,
@@ -65,6 +73,15 @@ use utoipa::OpenApi;
             LMSHeartbeatRequest,
             LMSClientInfo,
             LMSStatistics,
+            User,
+            RegisterUser,
+            LoginRequest,
+            LoginResponse,
+            UserInfo,
+            PaginationParams,
+            PaginatedResponse<Client>,
+            PaginatedResponse<Course>,
+            PaginationInfo,
         )
     ),
     tags(
@@ -74,11 +91,12 @@ use utoipa::OpenApi;
         (name = "Statistics", description = "Statistics"),
         (name = "Settings", description = "Settings management"),
         (name = "LMS Management", description = "Light Management Service instances management"),
+        (name = "Authentication", description = "User authentication and authorization"),
     ),
     info(
         title = "ClassTop Management Server API",
         version = "1.0.0",
-        description = "Centralized management server for ClassTop clients"
+        description = "Centralized management server for ClassTop clients with authentication and pagination support"
     )
 )]
 pub struct ApiDoc;
@@ -95,10 +113,17 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
     cfg
         // Health
         .route("/health", web::get().to(handlers::health_check))
+        // Authentication (public endpoints)
+        .service(
+            web::scope("/auth")
+                .route("/register", web::post().to(handlers::register))
+                .route("/login", web::post().to(handlers::login)),
+        )
         // Clients
         .service(
             web::scope("/clients")
                 .route("", web::get().to(handlers::get_clients))
+                .route("/paginated", web::get().to(handlers::get_clients_paginated))
                 .route("/register", web::post().to(handlers::register_client))
                 .route("/{id}", web::get().to(handlers::get_client))
                 .route("/{id}", web::put().to(handlers::update_client))
@@ -108,6 +133,11 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
                     "/{id}/schedule",
                     web::get().to(handlers::get_client_schedule),
                 ),
+        )
+        // Courses
+        .service(
+            web::scope("/courses")
+                .route("/paginated", web::get().to(handlers::get_courses_paginated)),
         )
         // Sync
         .route("/sync", web::post().to(handlers::sync_data))

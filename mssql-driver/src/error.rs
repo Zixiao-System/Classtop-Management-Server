@@ -1,7 +1,5 @@
 //! Error types for mssql-driver
 
-use std::fmt;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]

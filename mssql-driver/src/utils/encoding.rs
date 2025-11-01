@@ -25,6 +25,7 @@ pub fn decode_ucs2_le(bytes: &[u8]) -> Result<String> {
 }
 
 /// Encode string with length prefix (B_VARCHAR)
+#[allow(dead_code)]
 pub fn encode_b_varchar(s: &str) -> Vec<u8> {
     let encoded = encode_ucs2_le(s);
     let len = (encoded.len() / 2) as u8; // Character count, not byte count
@@ -36,6 +37,7 @@ pub fn encode_b_varchar(s: &str) -> Vec<u8> {
 }
 
 /// Encode string with 16-bit length prefix (US_VARCHAR)
+#[allow(dead_code)]
 pub fn encode_us_varchar(s: &str) -> Vec<u8> {
     let encoded = encode_ucs2_le(s);
     let len = (encoded.len() / 2) as u16; // Character count

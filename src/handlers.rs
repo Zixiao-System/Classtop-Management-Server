@@ -443,3 +443,170 @@ fn generate_api_key() -> String {
         })
         .collect()
 }
+
+// Authentication handlers
+#[utoipa::path(
+    post,
+    path = "/api/auth/register",
+    request_body = RegisterUser,
+    responses(
+        (status = 200, description = "User registered successfully", body = ApiResponse<UserInfo>),
+        (status = 400, description = "Bad request - username already exists")
+    ),
+    tag = "Authentication"
+)]
+pub async fn register(
+    pool: web::Data<DbPool>,
+    config: web::Data<crate::config::Config>,
+    user_data: web::Json<RegisterUser>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+
+    // Hash password
+    let password_hash = crate::auth::hash_password(&user_data.password)
+        .map_err(|e| crate::error::AppError::Internal(format!("Failed to hash password: {}", e)))?;
+
+    // Create user
+    let user = repo
+        .create_user(
+            &uuid::Uuid::new_v4().to_string(),
+            &user_data.username,
+            &password_hash,
+            user_data.email.as_deref(),
+            "user", // Default role
+        )
+        .await?;
+
+    // Generate token
+    let token = crate::auth::generate_token(
+        uuid::Uuid::parse_str(&user.uuid).unwrap(),
+        user.username.clone(),
+        &config.jwt_secret,
+    )
+    .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
+
+    let response = LoginResponse {
+        token,
+        user: user.into(),
+    };
+
+    Ok(HttpResponse::Ok().json(ApiResponse::new(response)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/auth/login",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = ApiResponse<LoginResponse>),
+        (status = 401, description = "Invalid credentials")
+    ),
+    tag = "Authentication"
+)]
+pub async fn login(
+    pool: web::Data<DbPool>,
+    config: web::Data<crate::config::Config>,
+    credentials: web::Json<LoginRequest>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+
+    // Get user by username
+    let user = repo
+        .get_user_by_username(&credentials.username)
+        .await
+        .map_err(|_| {
+            crate::error::AppError::BadRequest("Invalid username or password".to_string())
+        })?;
+
+    // Verify password
+    let is_valid = crate::auth::verify_password(&credentials.password, &user.password_hash)
+        .map_err(|e| {
+            crate::error::AppError::Internal(format!("Password verification failed: {}", e))
+        })?;
+
+    if !is_valid {
+        return Err(crate::error::AppError::BadRequest(
+            "Invalid username or password".to_string(),
+        ));
+    }
+
+    if !user.is_active {
+        return Err(crate::error::AppError::BadRequest(
+            "User account is disabled".to_string(),
+        ));
+    }
+
+    // Generate token
+    let token = crate::auth::generate_token(
+        uuid::Uuid::parse_str(&user.uuid).unwrap(),
+        user.username.clone(),
+        &config.jwt_secret,
+    )
+    .map_err(|e| crate::error::AppError::Internal(e.to_string()))?;
+
+    let response = LoginResponse {
+        token,
+        user: user.into(),
+    };
+
+    Ok(HttpResponse::Ok().json(ApiResponse::new(response)))
+}
+
+// Pagination handlers
+#[utoipa::path(
+    get,
+    path = "/api/clients/paginated",
+    params(
+        ("page" = Option<i64>, Query, description = "Page number (default: 1)"),
+        ("page_size" = Option<i64>, Query, description = "Page size (default: 20)")
+    ),
+    responses(
+        (status = 200, description = "Paginated list of clients", body = ApiResponse<PaginatedResponse<Client>>)
+    ),
+    tag = "Clients"
+)]
+pub async fn get_clients_paginated(
+    pool: web::Data<DbPool>,
+    params: web::Query<PaginationParams>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+    let (clients, total) = repo
+        .get_clients_paginated(params.offset(), params.limit())
+        .await?;
+
+    let response = PaginatedResponse {
+        data: clients,
+        pagination: PaginationInfo::new(params.page, params.page_size, total),
+    };
+
+    Ok(HttpResponse::Ok().json(ApiResponse::new(response)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/courses/paginated",
+    params(
+        ("page" = Option<i64>, Query, description = "Page number (default: 1)"),
+        ("page_size" = Option<i64>, Query, description = "Page size (default: 20)")
+    ),
+    responses(
+        (status = 200, description = "Paginated list of courses", body = ApiResponse<PaginatedResponse<Course>>)
+    ),
+    tag = "Courses"
+)]
+pub async fn get_courses_paginated(
+    pool: web::Data<DbPool>,
+    params: web::Query<PaginationParams>,
+) -> AppResult<HttpResponse> {
+    let repo = Repository::new(pool.get_ref().clone());
+    let (courses, total) = repo
+        .get_courses_paginated(params.offset(), params.limit())
+        .await?;
+
+    let response = PaginatedResponse {
+        data: courses,
+        pagination: PaginationInfo::new(params.page, params.page_size, total),
+    };
+
+    Ok(HttpResponse::Ok().json(ApiResponse::new(response)))
+}

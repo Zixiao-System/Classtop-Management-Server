@@ -21,6 +21,21 @@ pub async fn run_migrations(pool: &DbPool) -> Result<()> {
         .await
         .ok();
 
+    sqlx::query(include_str!("../migrations/003_add_lms_support.sql"))
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query(include_str!("../migrations/004_add_cctv_support.sql"))
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query(include_str!("../migrations/005_add_user_auth.sql"))
+        .execute(pool)
+        .await
+        .ok();
+
     Ok(())
 }
 
@@ -980,6 +995,212 @@ pub mod repository {
                 .collect();
 
             Ok(events)
+        }
+
+        // User operations
+        pub async fn create_user(
+            &self,
+            uuid: &str,
+            username: &str,
+            password_hash: &str,
+            email: Option<&str>,
+            role: &str,
+        ) -> AppResult<User> {
+            let row = sqlx::query(
+                "INSERT INTO users (uuid, username, password_hash, email, role)
+                 VALUES ($1, $2, $3, $4, $5)
+                 RETURNING id, uuid, username, password_hash, email, role, is_active,
+                           created_at, updated_at",
+            )
+            .bind(uuid)
+            .bind(username)
+            .bind(password_hash)
+            .bind(email)
+            .bind(role)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                if e.to_string().contains("duplicate key") {
+                    AppError::BadRequest("Username already exists".to_string())
+                } else {
+                    AppError::Database(e)
+                }
+            })?;
+
+            Ok(User {
+                id: row.get("id"),
+                uuid: row.get("uuid"),
+                username: row.get("username"),
+                password_hash: row.get("password_hash"),
+                email: row.try_get("email").ok(),
+                role: row.get("role"),
+                is_active: row.get("is_active"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+        }
+
+        pub async fn get_user_by_username(&self, username: &str) -> AppResult<User> {
+            let row = sqlx::query(
+                "SELECT id, uuid, username, password_hash, email, role, is_active,
+                        created_at, updated_at
+                 FROM users WHERE username = $1",
+            )
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await?;
+
+            match row {
+                Some(row) => Ok(User {
+                    id: row.get("id"),
+                    uuid: row.get("uuid"),
+                    username: row.get("username"),
+                    password_hash: row.get("password_hash"),
+                    email: row.try_get("email").ok(),
+                    role: row.get("role"),
+                    is_active: row.get("is_active"),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                }),
+                None => Err(AppError::NotFound("User not found".to_string())),
+            }
+        }
+
+        #[allow(dead_code)]
+        pub async fn get_user_by_id(&self, id: i32) -> AppResult<User> {
+            let row = sqlx::query(
+                "SELECT id, uuid, username, password_hash, email, role, is_active,
+                        created_at, updated_at
+                 FROM users WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+            match row {
+                Some(row) => Ok(User {
+                    id: row.get("id"),
+                    uuid: row.get("uuid"),
+                    username: row.get("username"),
+                    password_hash: row.get("password_hash"),
+                    email: row.try_get("email").ok(),
+                    role: row.get("role"),
+                    is_active: row.get("is_active"),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                }),
+                None => Err(AppError::NotFound("User not found".to_string())),
+            }
+        }
+
+        #[allow(dead_code)]
+        pub async fn get_all_users(&self) -> AppResult<Vec<User>> {
+            let rows = sqlx::query(
+                "SELECT id, uuid, username, password_hash, email, role, is_active,
+                        created_at, updated_at
+                 FROM users ORDER BY created_at DESC",
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
+            let users = rows
+                .iter()
+                .map(|row| User {
+                    id: row.get("id"),
+                    uuid: row.get("uuid"),
+                    username: row.get("username"),
+                    password_hash: row.get("password_hash"),
+                    email: row.try_get("email").ok(),
+                    role: row.get("role"),
+                    is_active: row.get("is_active"),
+                    created_at: row.get("created_at"),
+                    updated_at: row.get("updated_at"),
+                })
+                .collect();
+
+            Ok(users)
+        }
+
+        // Pagination support for clients
+        pub async fn get_clients_paginated(
+            &self,
+            offset: i64,
+            limit: i64,
+        ) -> AppResult<(Vec<Client>, i64)> {
+            // Get total count
+            let count_row = sqlx::query("SELECT COUNT(*) as count FROM clients")
+                .fetch_one(&self.pool)
+                .await?;
+            let total: i64 = count_row.get("count");
+
+            // Get paginated results
+            let rows = sqlx::query(
+                "SELECT id, uuid, name, description, api_url, api_key,
+                        last_sync, status, created_at
+                 FROM clients ORDER BY created_at DESC
+                 LIMIT $1 OFFSET $2",
+            )
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let clients = rows
+                .iter()
+                .map(|row| Client {
+                    id: row.get("id"),
+                    uuid: row.get("uuid"),
+                    name: row.get("name"),
+                    description: row.try_get("description").ok(),
+                    api_url: row.get("api_url"),
+                    api_key: row.try_get("api_key").ok(),
+                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    status: row.get("status"),
+                    created_at: row.get("created_at"),
+                })
+                .collect();
+
+            Ok((clients, total))
+        }
+
+        // Pagination support for courses
+        pub async fn get_courses_paginated(
+            &self,
+            offset: i64,
+            limit: i64,
+        ) -> AppResult<(Vec<Course>, i64)> {
+            // Get total count
+            let count_row = sqlx::query("SELECT COUNT(*) as count FROM courses")
+                .fetch_one(&self.pool)
+                .await?;
+            let total: i64 = count_row.get("count");
+
+            // Get paginated results
+            let rows = sqlx::query(
+                "SELECT id, client_id, course_id_on_client, name, teacher, location, color, note
+                 FROM courses ORDER BY id DESC
+                 LIMIT $1 OFFSET $2",
+            )
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let courses = rows
+                .iter()
+                .map(|row| Course {
+                    id: row.get("id"),
+                    client_id: row.get("client_id"),
+                    course_id_on_client: row.get("course_id_on_client"),
+                    name: row.get("name"),
+                    teacher: row.try_get("teacher").ok(),
+                    location: row.try_get("location").ok(),
+                    color: row.try_get("color").ok(),
+                    note: row.try_get("note").ok(),
+                })
+                .collect();
+
+            Ok((courses, total))
         }
     }
 }

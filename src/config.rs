@@ -8,7 +8,7 @@ pub enum DatabaseType {
 }
 
 impl DatabaseType {
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn parse(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "postgresql" | "postgres" => Ok(DatabaseType::PostgreSQL),
             "mssql" | "sqlserver" => Ok(DatabaseType::Mssql),
@@ -33,6 +33,9 @@ pub struct Config {
     pub host: String,
     pub port: u16,
     pub app_version: String,
+    pub jwt_secret: String,
+    pub cors_allowed_origins: Vec<String>,
+    pub enable_auth: bool,
 }
 
 impl Config {
@@ -48,10 +51,18 @@ impl Config {
             DatabaseType::Mssql
         } else {
             // Fallback: check DATABASE_TYPE env var
-            DatabaseType::from_str(
+            DatabaseType::parse(
                 &env::var("DATABASE_TYPE").unwrap_or_else(|_| "postgresql".to_string()),
             )?
         };
+
+        // Parse CORS allowed origins
+        let cors_allowed_origins = env::var("CORS_ALLOWED_ORIGINS")
+            .unwrap_or_else(|_| "http://localhost:5173,http://localhost:8765".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
 
         Ok(Config {
             database_type,
@@ -62,6 +73,13 @@ impl Config {
                 .parse()
                 .expect("PORT must be a valid u16"),
             app_version: env::var("APP_VERSION").unwrap_or_else(|_| "1.0.0".to_string()),
+            jwt_secret: env::var("JWT_SECRET")
+                .expect("JWT_SECRET must be set for authentication"),
+            cors_allowed_origins,
+            enable_auth: env::var("ENABLE_AUTH")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap_or(true),
         })
     }
 }

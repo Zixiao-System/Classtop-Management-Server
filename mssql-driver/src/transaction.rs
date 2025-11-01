@@ -15,7 +15,7 @@ pub enum IsolationLevel {
 
 /// SQL Server transaction
 pub struct Transaction<'conn> {
-    conn: &'conn mut Connection,
+    _conn: &'conn mut Connection,
     committed: bool,
 }
 
@@ -25,7 +25,7 @@ impl<'conn> Transaction<'conn> {
         // TODO: Execute BEGIN TRANSACTION
         log::warn!("Transaction::begin() not yet implemented");
         Ok(Self {
-            conn,
+            _conn: conn,
             committed: false,
         })
     }

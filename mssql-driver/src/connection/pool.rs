@@ -1,7 +1,7 @@
 //! Connection pooling implementation
 
 use crate::connection::{Connection, ConnectionConfig};
-use crate::error::{Error, Result};
+use crate::error::Result;
 
 /// Connection pool (placeholder for now)
 pub struct ConnectionPool {

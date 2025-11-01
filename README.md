@@ -462,7 +462,7 @@ docker run -d \
 
 ## 📮 联系方式
 
-如有问题或建议，请：
+c如有问题或建议，请：
 
 - 提交 [Issue](https://github.com/YOUR_USERNAME/Classtop-Management-Server/issues)
 - Pull Request
