@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::NaiveDateTime;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres};
 use std::time::Duration;
@@ -75,7 +76,7 @@ pub mod repository {
                     description: row.try_get("description").ok(),
                     api_url: row.get("api_url"),
                     api_key: row.try_get("api_key").ok(),
-                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    last_sync: row.try_get::<NaiveDateTime, _>("last_sync").ok(),
                     status: row.get("status"),
                     created_at: row.get("created_at"),
                 })
@@ -102,7 +103,7 @@ pub mod repository {
                     description: row.try_get("description").ok(),
                     api_url: row.get("api_url"),
                     api_key: row.try_get("api_key").ok(),
-                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    last_sync: row.try_get::<NaiveDateTime, _>("last_sync").ok(),
                     status: row.get("status"),
                     created_at: row.get("created_at"),
                 }),
@@ -128,7 +129,7 @@ pub mod repository {
                     description: row.try_get("description").ok(),
                     api_url: row.get("api_url"),
                     api_key: row.try_get("api_key").ok(),
-                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    last_sync: row.try_get::<NaiveDateTime, _>("last_sync").ok(),
                     status: row.get("status"),
                     created_at: row.get("created_at"),
                 }),
@@ -137,11 +138,9 @@ pub mod repository {
         }
 
         pub async fn register_client(&self, client: RegisterClient) -> AppResult<Client> {
-            let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-
             let row = sqlx::query(
-                "INSERT INTO clients (uuid, name, description, api_url, api_key, status, created_at)
-                 VALUES ($1, $2, $3, $4, $5, 'offline', $6)
+                "INSERT INTO clients (uuid, name, description, api_url, api_key, status)
+                 VALUES ($1, $2, $3, $4, $5, 'offline')
                  RETURNING id, uuid, name, description, api_url, api_key, last_sync, status, created_at"
             )
             .bind(&client.uuid)
@@ -149,7 +148,6 @@ pub mod repository {
             .bind(&client.description)
             .bind(&client.api_url)
             .bind(&client.api_key)
-            .bind(&now)
             .fetch_one(&self.pool)
             .await?;
 
@@ -512,7 +510,9 @@ pub mod repository {
                     client_name: row.get("name"),
                     total_courses: row.get("course_count"),
                     total_schedule_entries: row.get("entry_count"),
-                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    last_sync: row.try_get::<NaiveDateTime, _>("last_sync")
+                        .ok()
+                        .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S").to_string()),
                 })
                 .collect();
 
@@ -741,7 +741,7 @@ pub mod repository {
                     description: row.try_get("description").ok(),
                     api_url: row.get("api_url"),
                     api_key: row.try_get("api_key").ok(),
-                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    last_sync: row.try_get::<NaiveDateTime, _>("last_sync").ok(),
                     status: row.get("status"),
                     created_at: row.get("created_at"),
                 })
@@ -1154,7 +1154,7 @@ pub mod repository {
                     description: row.try_get("description").ok(),
                     api_url: row.get("api_url"),
                     api_key: row.try_get("api_key").ok(),
-                    last_sync: row.try_get::<String, _>("last_sync").ok(),
+                    last_sync: row.try_get::<NaiveDateTime, _>("last_sync").ok(),
                     status: row.get("status"),
                     created_at: row.get("created_at"),
                 })

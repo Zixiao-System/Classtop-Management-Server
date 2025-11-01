@@ -29,9 +29,11 @@ pub struct Client {
     pub api_url: String, // 客户端的 API 地址
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>, // 如果客户端需要认证
-    pub last_sync: Option<String>, // 最后同步时间
+    #[schema(value_type = Option<String>, example = "2024-01-01T00:00:00")]
+    pub last_sync: Option<NaiveDateTime>, // 最后同步时间
     pub status: String,  // online, offline, error
-    pub created_at: String,
+    #[schema(value_type = String, example = "2024-01-01T00:00:00")]
+    pub created_at: NaiveDateTime,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
