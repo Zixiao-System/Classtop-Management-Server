@@ -114,10 +114,11 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { snackbar } from 'mdui'
 import { auth } from '../auth.js'
 
-const emit = defineEmits(['login-success'])
+const router = useRouter()
 
 const activeTab = ref('login')
 const loading = ref(false)
@@ -157,7 +158,7 @@ const handleLogin = async () => {
       message: '登录成功！',
       action: '确定'
     })
-    emit('login-success')
+    router.push('/')
   } catch (err) {
     error.value = err.message || '登录失败，请检查用户名和密码'
     snackbar({
@@ -199,7 +200,7 @@ const handleRegister = async () => {
       message: '注册成功！正在登录...',
       action: '确定'
     })
-    emit('login-success')
+    router.push('/')
   } catch (err) {
     error.value = err.message || '注册失败，用户名可能已被使用'
     snackbar({
