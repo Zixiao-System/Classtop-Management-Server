@@ -73,8 +73,7 @@ impl Config {
                 .parse()
                 .expect("PORT must be a valid u16"),
             app_version: env::var("APP_VERSION").unwrap_or_else(|_| "1.0.0".to_string()),
-            jwt_secret: env::var("JWT_SECRET")
-                .expect("JWT_SECRET must be set for authentication"),
+            jwt_secret: env::var("JWT_SECRET").expect("JWT_SECRET must be set for authentication"),
             cors_allowed_origins,
             enable_auth: env::var("ENABLE_AUTH")
                 .unwrap_or_else(|_| "true".to_string())

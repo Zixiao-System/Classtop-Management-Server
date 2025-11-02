@@ -510,7 +510,8 @@ pub mod repository {
                     client_name: row.get("name"),
                     total_courses: row.get("course_count"),
                     total_schedule_entries: row.get("entry_count"),
-                    last_sync: row.try_get::<NaiveDateTime, _>("last_sync")
+                    last_sync: row
+                        .try_get::<NaiveDateTime, _>("last_sync")
                         .ok()
                         .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S").to_string()),
                 })

@@ -1,6 +1,6 @@
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use chrono::NaiveDateTime;
 
 // Response wrapper
 #[derive(Debug, Serialize, ToSchema)]

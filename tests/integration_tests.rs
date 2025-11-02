@@ -4,10 +4,9 @@ use classtop_management_server::{handlers, models, routes};
 
 #[actix_web::test]
 async fn test_health_check() {
-    let app = test::init_service(
-        App::new().route("/api/health", web::get().to(handlers::health_check)),
-    )
-    .await;
+    let app =
+        test::init_service(App::new().route("/api/health", web::get().to(handlers::health_check)))
+            .await;
 
     let req = test::TestRequest::get().uri("/api/health").to_request();
     let resp = test::call_service(&app, req).await;
