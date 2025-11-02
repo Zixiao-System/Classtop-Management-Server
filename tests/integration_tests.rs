@@ -29,6 +29,7 @@ async fn test_root_endpoint() {
 
 #[cfg(test)]
 mod model_tests {
+    use chrono::NaiveDateTime;
     use classtop_management_server::models;
 
     #[test]
@@ -54,6 +55,11 @@ mod model_tests {
 
     #[test]
     fn test_user_info_from_user() {
+        // Create a sample NaiveDateTime for testing
+        let test_datetime =
+            NaiveDateTime::parse_from_str("2024-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")
+                .expect("Failed to parse datetime");
+
         let user = models::User {
             id: 1,
             uuid: "test-uuid".to_string(),
@@ -62,8 +68,8 @@ mod model_tests {
             email: Some("test@example.com".to_string()),
             role: "user".to_string(),
             is_active: true,
-            created_at: "2024-01-01".to_string(),
-            updated_at: "2024-01-01".to_string(),
+            created_at: test_datetime,
+            updated_at: test_datetime,
         };
 
         let info: models::UserInfo = user.into();
